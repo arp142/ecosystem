@@ -1,0 +1,2216 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>생태계 동적 평형 시뮬레이션</title>
+
+<style>
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 20px;
+    color: #1f2937;
+    background: #f3f4f6;
+    font-family: Arial, "Malgun Gothic", sans-serif;
+  }
+
+  h1 { margin: 0 0 10px; font-size: 24px; }
+  h2 { margin: 0 0 12px; font-size: 18px; }
+  h3 { margin: 0 0 10px; font-size: 15px; }
+
+  .description, .note {
+    color: #4b5563;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  .controls, .panel, .summary, .intervention {
+    padding: 16px;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+  }
+
+  .controls, .adjust-controls, .view-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 12px;
+  }
+
+  .controls { margin: 16px 0; }
+  .view-controls { margin-bottom: 12px; }
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+  }
+
+  input, select, button {
+    padding: 9px;
+    font: inherit;
+  }
+
+  input[type="number"] { width: 110px; }
+
+  button {
+    cursor: pointer;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    background: #f8fafc;
+    color: #1f2937;
+  }
+
+  button:hover { filter: brightness(0.97); }
+
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible {
+    outline: 3px solid #60a5fa;
+    outline-offset: 3px;
+  }
+
+  .producer { color: #15803d; }
+  .herbivore { color: #b45309; }
+  .predator { color: #7e22ce; }
+
+  #error {
+    min-height: 20px;
+    color: #b91c1c;
+    font-size: 14px;
+  }
+
+  .intervention {
+    margin-bottom: 16px;
+    background: #f8fbff;
+    border-color: #bfdbfe;
+  }
+
+  .intervention h2 {
+    color: #1e40af;
+    font-size: 16px;
+  }
+
+  .adjust-button {
+    min-width: 105px;
+    font-weight: bold;
+  }
+
+  .add-button {
+    color: #166534;
+    background: #dcfce7;
+    border-color: #86efac;
+  }
+
+  .remove-button {
+    color: #991b1b;
+    background: #fee2e2;
+    border-color: #fca5a5;
+  }
+
+  .current-population {
+    padding: 10px 0;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #adjustMessage {
+    min-height: 24px;
+    margin: 10px 0 0;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  #adjustMessage.error { color: #b91c1c; }
+  .intervention .note { margin: 4px 0 0; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .panel { min-width: 0; }
+
+  .canvas-wrap {
+    position: relative;
+    width: 100%;
+    height: 420px;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .graph-tooltip {
+    position: absolute;
+    z-index: 5;
+    max-width: min(320px, 95%);
+    max-height: 95%;
+    overflow: hidden;
+    padding: 10px 12px;
+    color: #fff;
+    background: rgba(15, 23, 42, 0.96);
+    border-radius: 7px;
+    box-shadow: 0 4px 14px #0002;
+    font-size: 12px;
+    line-height: 1.7;
+    white-space: pre-line;
+    pointer-events: none;
+  }
+
+  .event-history {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .table-wrap {
+    max-height: 220px;
+    overflow: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  th, td {
+    padding: 8px 10px;
+    text-align: right;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    color: #475569;
+    background: #f1f5f9;
+  }
+
+  th:nth-child(3), td:nth-child(3) { text-align: left; }
+  tbody tr:last-child td { border-bottom: 0; }
+
+  .delta-add { color: #15803d; font-weight: bold; }
+  .delta-remove { color: #b91c1c; font-weight: bold; }
+
+  #noEvents {
+    margin: 0;
+    color: #64748b;
+    font-size: 13px;
+  }
+
+  .pyramid-area {
+    height: 420px;
+    padding-top: 24px;
+    overflow-x: auto;
+  }
+
+  #pyramid {
+    display: block;
+    width: 500px;
+    height: 300px;
+    margin: 0 auto;
+  }
+
+  .pyramid-text {
+    fill: #1f2937;
+    stroke: #fff;
+    stroke-width: 4px;
+    paint-order: stroke fill;
+    stroke-linejoin: round;
+    font-size: 14px;
+    font-weight: bold;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .pyramid-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 12px;
+    font-size: 14px;
+  }
+
+  #pyramidCompareControls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 12px;
+  }
+
+  .compare-time-input {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  #compareHours { width: 80px; }
+
+  #togglePyramidCompare[aria-pressed="true"] {
+    color: #166534;
+    background: #dcfce7;
+    border-color: #86efac;
+  }
+
+  .comparison-arrow {
+    fill: #fff;
+    stroke-width: 3;
+    stroke-linejoin: round;
+  }
+
+  .comparison-caption {
+    fill: #374151;
+    font-size: 11px;
+    text-anchor: middle;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #pyramidCompareNote {
+    padding: 10px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+  }
+
+  .summary { margin-top: 16px; }
+
+  .summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .summary-values {
+    display: grid;
+    flex: 1;
+    min-width: 0;
+    grid-template-columns: repeat(auto-fit, 230px);
+    gap: 12px 18px;
+    overflow-x: auto;
+  }
+
+  .stat {
+    display: grid;
+    grid-template-columns: 100px 100px 24px;
+    align-items: center;
+    column-gap: 3px;
+    width: 230px;
+    min-height: 30px;
+    white-space: nowrap;
+  }
+
+  .stat-number {
+    overflow: hidden;
+    text-align: right;
+    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-direction {
+    text-align: center;
+    font-weight: bold;
+  }
+
+  .info-button {
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    color: #475569;
+    border-radius: 50%;
+    font: italic bold 23px Georgia, serif;
+  }
+
+  .info-button[aria-expanded="true"] {
+    color: #fff;
+    background: #2563eb;
+    border-color: #2563eb;
+  }
+
+  .info-panel {
+    margin-top: 16px;
+    padding: 16px 18px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+  }
+
+  .info-list {
+    margin: 0;
+    padding-left: 25px;
+    color: #475569;
+    font-size: 14px;
+    line-height: 1.8;
+  }
+
+  .info-list li + li { margin-top: 5px; }
+
+  .formula-settings {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid #d1d5db;
+  }
+
+  .formula-settings-button {
+    width: 100%;
+    padding: 11px 14px;
+    color: #1e40af;
+    background: #eff6ff;
+    border-color: #93c5fd;
+    font-weight: bold;
+    text-align: left;
+  }
+
+  .formula-settings-button[aria-expanded="true"] {
+    background: #dbeafe;
+  }
+
+  .formula-options {
+    min-width: 0;
+    margin: 12px 0 0;
+    padding: 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+  }
+
+  .formula-options legend {
+    padding: 0 6px;
+    color: #334155;
+    font-size: 14px;
+    font-weight: bold;
+  }
+
+  .formula-choice {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 10px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+
+  .formula-choice:hover { background: #eff6ff; }
+
+  .formula-choice input {
+    flex: 0 0 auto;
+    margin: 3px 0 0;
+  }
+
+  .formula-choice strong {
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .formula-choice small {
+    display: block;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .formula-status {
+    margin: 10px 0 0;
+    color: #1e40af;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+
+  .formula-descriptions {
+    margin-top: 14px;
+    color: #475569;
+    font-size: 13px;
+    line-height: 1.8;
+  }
+
+  .formula-descriptions h4 {
+    margin: 12px 0 4px;
+    color: #1f2937;
+    font-size: 14px;
+  }
+
+  .formula-descriptions p { margin: 0; }
+
+  .formula-equation {
+    margin: 8px 0 !important;
+    padding: 8px 10px;
+    overflow-x: auto;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 5px;
+    font-family: Consolas, monospace;
+    white-space: nowrap;
+  }
+
+  [hidden] { display: none !important; }
+
+  @media (max-width: 850px) {
+    body { padding: 12px; }
+    .layout { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+
+<body>
+<h1>생태계 동적 평형 | Ecosystem Dynamic Equilibrium</h1>
+
+<p class="description">
+  풀(생산자) → 토끼(1차 소비자) → 여우(2차 소비자).<br>
+  실행 중 개체수를 조절하고, 변경 시점과 이후의 변화를 관찰하세요.
+</p>
+
+<div class="controls">
+  <label>
+    시작 조건 / Preset
+    <select id="preset">
+      <option value="balanced">기본: 동적 평형 관찰</option>
+      <option value="equilibrium">기준 평형에서 시작</option>
+      <option value="herbivoreHigh">1차 소비자 과다</option>
+      <option value="predatorHigh">2차 소비자 과다</option>
+      <option value="noPredator">2차 소비자 없음</option>
+      <option value="custom">직접 입력 / Custom</option>
+    </select>
+  </label>
+
+  <label class="producer">
+    생산자 / Plants
+    <input id="initialP" type="number"
+           min="0" max="3000" step="any" value="650">
+  </label>
+
+  <label class="herbivore">
+    1차 소비자 / Rabbits
+    <input id="initialH" type="number"
+           min="0" max="3000" step="any" value="80">
+  </label>
+
+  <label class="predator">
+    2차 소비자 / Foxes
+    <input id="initialC" type="number"
+           min="0" max="3000" step="any" value="15">
+  </label>
+
+  <button id="apply" type="button">조건 적용·초기화</button>
+  <button id="play" type="button">시작 / Start</button>
+
+  <label>
+    배속 / Speed
+    <select id="speed">
+      <option value="0.5">0.5×</option>
+      <option value="1" selected>1×</option>
+      <option value="2">2×</option>
+      <option value="4">4×</option>
+      <option value="8">8×</option>
+    </select>
+  </label>
+</div>
+
+<div id="error" role="alert"></div>
+
+<section class="intervention" aria-labelledby="adjustTitle">
+  <h2 id="adjustTitle">개체수 조절 / Add &amp; Remove</h2>
+
+  <div class="adjust-controls">
+    <label>
+      변경할 개체군
+      <select id="adjustSpecies">
+        <option value="0">생산자 / Plants</option>
+        <option value="1">1차 소비자 / Rabbits</option>
+        <option value="2">2차 소비자 / Foxes</option>
+      </select>
+    </label>
+
+    <label>
+      추가·감소할 수량
+      <input id="adjustAmount" type="number"
+             min="1" max="3000" step="1" value="10">
+    </label>
+
+    <button id="addPopulation" type="button"
+            class="adjust-button add-button">＋ 추가</button>
+
+    <button id="removePopulation" type="button"
+            class="adjust-button remove-button">－ 줄이기</button>
+
+    <div class="current-population">
+      현재 선택 개체수:
+      <strong id="selectedPopulation">650</strong>
+    </div>
+  </div>
+
+  <p id="adjustMessage" role="status" aria-live="polite">
+    실행 중 또는 일시정지 상태에서 사용할 수 있습니다.
+  </p>
+
+  <p class="note">
+    시간·실행 상태 유지 · 한 번에 1~3,000개체 조절 ·
+    현재 수량보다 많이 줄이면 0까지 감소
+  </p>
+</section>
+
+<div class="layout">
+  <section class="panel">
+    <h2>생태계 / Ecosystem</h2>
+
+    <div class="canvas-wrap">
+      <canvas id="world"
+              aria-label="개체별 도형으로 표시한 생태계"></canvas>
+    </div>
+
+    <p class="note">
+      <span class="producer">● 생산자</span> ·
+      <span class="herbivore">● 1차 소비자</span> ·
+      <span class="predator">▲ 2차 소비자</span><br>
+      도형 1개 = 1개체 · 숫자와 도형 수는 소수점 반올림<br>
+      생산자는 고정되고 소비자는 여러 방향으로 움직입니다.
+      도형끼리 겹칠 수 있습니다.
+    </p>
+  </section>
+
+  <section class="panel">
+    <h2 id="viewTitle">개체수 변화 / Population Graph</h2>
+
+    <div class="view-controls">
+      <label>
+        보기 / View
+        <select id="viewMode">
+          <option value="graph">개체수 그래프 / Graph</option>
+          <option value="pyramid">생태피라미드 / Pyramid</option>
+        </select>
+      </label>
+
+      <label id="graphModeControl">
+        세로축 / Y-axis
+        <select id="graphMode">
+          <option value="population">개체수</option>
+          <option value="relative">기준 개체수 대비 %</option>
+        </select>
+      </label>
+
+      <div id="pyramidCompareControls" hidden>
+        <button id="togglePyramidCompare" type="button"
+                aria-pressed="false">과거 비교: 꺼짐</button>
+
+        <label>
+          비교 시점
+          <span class="compare-time-input">
+            <input id="compareHours" type="number"
+                   min="0.2" max="120" step="0.1" value="5">
+            <span>시간 전</span>
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <div id="graphView">
+      <div class="canvas-wrap" id="graphWrap">
+        <canvas id="graph"
+                aria-label="개체수 변화와 개체 추가·감소 시점 그래프"></canvas>
+        <div id="graphTooltip" class="graph-tooltip" hidden></div>
+      </div>
+
+      <p class="note">
+        <span class="producer">■ 생산자</span> ·
+        <span class="herbivore">■ 1차 소비자</span> ·
+        <span class="predator">■ 2차 소비자</span><br>
+        점선 = 직접 조절한 시점 / ＋ 추가 / − 감소<br>
+        변경 표시 위에 마우스를 올리거나 터치하면 상세 내역이 나타납니다.
+        표시가 밀집하면 아래 기록 표를 확인하세요.<br>
+        최근 120시간 표시 · 시간과 개체수는 교육용 가상 단위
+      </p>
+    </div>
+
+    <div id="pyramidView" hidden>
+      <div class="pyramid-area">
+        <svg id="pyramid"
+             xmlns="http://www.w3.org/2000/svg"
+             width="500" height="300" viewBox="0 0 500 300"
+             role="img" aria-labelledby="pyramidTitle pyramidDesc">
+          <title id="pyramidTitle">실시간 개체수 피라미드</title>
+          <desc id="pyramidDesc">
+            아래부터 생산자, 1차 소비자, 2차 소비자입니다.
+            너비는 개체수에 비례합니다.
+          </desc>
+
+          <line id="pyramidCenter"
+                x1="250" y1="0" x2="250" y2="300"
+                stroke="#cbd5e1" stroke-dasharray="4 4"></line>
+
+          <rect id="topPart"
+                x="250" y="0" width="0" height="100"
+                fill="#7e22ce" fill-opacity="0.8"></rect>
+
+          <rect id="middlePart"
+                x="250" y="100" width="0" height="100"
+                fill="#b45309" fill-opacity="0.8"></rect>
+
+          <rect id="bottomPart"
+                x="250" y="200" width="0" height="100"
+                fill="#15803d" fill-opacity="0.8"></rect>
+
+          <text id="topLabel" class="pyramid-text"
+                x="250" y="50"></text>
+          <text id="middleLabel" class="pyramid-text"
+                x="250" y="150"></text>
+          <text id="bottomLabel" class="pyramid-text"
+                x="250" y="250"></text>
+
+          <g id="pyramidComparisonArrows" display="none">
+            <g>
+              <title id="compareTitleC"></title>
+              <path id="compareArrowC" class="comparison-arrow"></path>
+              <text id="compareCaptionC" class="comparison-caption"></text>
+            </g>
+            <g>
+              <title id="compareTitleH"></title>
+              <path id="compareArrowH" class="comparison-arrow"></path>
+              <text id="compareCaptionH" class="comparison-caption"></text>
+            </g>
+            <g>
+              <title id="compareTitleP"></title>
+              <path id="compareArrowP" class="comparison-arrow"></path>
+              <text id="compareCaptionP" class="comparison-caption"></text>
+            </g>
+          </g>
+        </svg>
+      </div>
+
+      <p id="pyramidCompareNote" class="note" hidden></p>
+
+      <div class="pyramid-legend">
+        <span class="producer">
+          생산자 <strong id="pyramidP">650</strong>
+        </span>
+        <span class="herbivore">
+          1차 소비자 <strong id="pyramidH">80</strong>
+        </span>
+        <span class="predator">
+          2차 소비자 <strong id="pyramidC">15</strong>
+        </span>
+      </div>
+
+      <p class="note">
+        아래부터 생산자 → 1차 소비자 → 2차 소비자.<br>
+        높이: 층마다 100px / 너비: 1개체당 0.48px, 동일 축척.<br>
+        개체수 피라미드이며 생물량·에너지 피라미드는 아닙니다.
+        넓어지면 가로로 스크롤할 수 있습니다.
+      </p>
+    </div>
+
+    <section class="event-history" aria-labelledby="eventHistoryTitle">
+      <h3 id="eventHistoryTitle">개체수 변경 기록 / Change Log</h3>
+      <p id="noEvents">아직 변경 기록이 없습니다.</p>
+
+      <div id="eventTableWrap" class="table-wrap" hidden>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">번호</th>
+              <th scope="col">시각</th>
+              <th scope="col">개체군</th>
+              <th scope="col">변경량</th>
+              <th scope="col">변경 전 → 후</th>
+            </tr>
+          </thead>
+          <tbody id="eventTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+</div>
+
+<section class="summary" aria-label="시뮬레이션 정보">
+  <div class="summary-header">
+    <div class="summary-values">
+      <div class="stat">
+        <span>시간:</span>
+        <strong id="time" class="stat-number">0.0</strong>
+        <span></span>
+      </div>
+
+      <div class="stat producer">
+        <span>생산자:</span>
+        <strong id="countP" class="stat-number">650</strong>
+        <span id="directionP" class="stat-direction"></span>
+      </div>
+
+      <div class="stat herbivore">
+        <span>1차 소비자:</span>
+        <strong id="countH" class="stat-number">80</strong>
+        <span id="directionH" class="stat-direction"></span>
+      </div>
+
+      <div class="stat predator">
+        <span>2차 소비자:</span>
+        <strong id="countC" class="stat-number">15</strong>
+        <span id="directionC" class="stat-direction"></span>
+      </div>
+    </div>
+
+    <button id="infoButton" class="info-button" type="button"
+            aria-label="시뮬레이션 안내 열기"
+            aria-expanded="false" aria-controls="infoPanel">i</button>
+  </div>
+
+  <div id="infoPanel" class="info-panel" hidden>
+    <h3>시뮬레이션 안내</h3>
+
+    <ol class="info-list">
+      <li>세 개체군은 먹이사슬과 환경 변화에 따라 서로 영향을 주고받습니다.</li>
+      <li>환경 변동이 없을 때 기준 개체수는 생산자 500, 1차 소비자 100, 2차 소비자 20입니다.</li>
+      <li>환경이 불규칙하게 변하므로 같은 시작 조건에서도 결과가 달라질 수 있습니다.</li>
+      <li>‘조건 적용·초기화’를 누르면 시간, 그래프, 변경 기록이 초기화됩니다. 선택한 수식은 유지됩니다.</li>
+      <li>개체수 조절은 시간과 실행 상태를 유지하며, 일시정지 중에도 사용할 수 있습니다.</li>
+      <li>0인 종은 직접 추가하기 전까지 다시 나타나지 않으며, 개체수는 0 미만이 되지 않습니다.</li>
+      <li>그래프는 소수점 계산값을, 숫자와 도형 수는 같은 값을 반올림해 사용합니다.</li>
+      <li>소비자의 이동과 도형 간 겹침은 개체수 계산에 영향을 주지 않습니다.</li>
+      <li>그래프의 점선과 라벨은 변경 시각과 실제 변경량을 나타냅니다.</li>
+      <li>하단 ↑·↓는 순간 변화, 피라미드 화살표는 설정한 시간 전 대비 변화입니다.</li>
+      <li>피라미드 비교에도 직접 추가하거나 줄인 변화가 포함됩니다.</li>
+    </ol>
+
+    <section class="formula-settings" aria-label="시뮬레이션 수식 설정">
+      <button id="formulaSettingsButton"
+              class="formula-settings-button"
+              type="button"
+              aria-expanded="false"
+              aria-controls="formulaSettingsPanel">
+        시뮬레이션 수식 설정 · 현재: 수식v1
+      </button>
+
+      <div id="formulaSettingsPanel" hidden>
+        <fieldset class="formula-options">
+          <legend>사용할 수식 선택</legend>
+
+          <label class="formula-choice">
+            <input type="radio" name="formulaVersion"
+                   value="v1" checked>
+            <span>
+              <strong>수식v1 · 기존 반응</strong>
+              <small>
+                현재 사용 중인 기존 수식입니다.
+                먹이와 개체수 변화가 기존 속도로 반영됩니다.
+              </small>
+            </span>
+          </label>
+
+          <label class="formula-choice">
+            <input type="radio" name="formulaVersion" value="v2">
+            <span>
+              <strong>수식v2 · 완만한 반응</strong>
+              <small>
+                기존 수식을 바탕으로 변화 속도를 낮춥니다.
+                급격한 증가·감소일수록 더 강하게 완화합니다.
+              </small>
+            </span>
+          </label>
+        </fieldset>
+
+        <p id="formulaStatus" class="formula-status"
+           role="status" aria-live="polite">
+          현재 수식v1을 사용 중입니다.
+        </p>
+
+        <p class="note">
+          선택 즉시 다음 계산부터 적용됩니다.
+          시간, 현재 개체수, 그래프와 변경 기록은 초기화되지 않습니다.
+        </p>
+      </div>
+
+      <div class="formula-descriptions">
+        <h4>수식v1 설명</h4>
+        <p>
+          생산자의 자체 성장과 환경수용력,
+          소비자의 섭식·번식·사망·밀도 영향을 계산하는 기존 수식입니다.
+          개체수가 기준 상태에서 크게 벗어나면
+          증가하거나 감소하는 속도도 커질 수 있습니다.
+        </p>
+
+        <h4>수식v2 설명</h4>
+        <p>
+          수식v1에서 계산한 변화율의 방향은 유지하면서
+          반영 속도를 낮춘 수식입니다.
+          변화가 작을 때는 기존의 약 절반 속도로 반영하고,
+          변화가 클 때는 추가로 완화하여
+          개체수가 급격하게 늘거나 줄어드는 현상을 줄입니다.
+        </p>
+
+        <p class="formula-equation">
+          F2 = F1 / (2 + |F1| / (0.12 × max(N, 1)))
+        </p>
+
+        <p>
+          N은 해당 개체군의 현재 개체수,
+          F1은 수식v1의 변화율,
+          F2는 수식v2의 변화율입니다.
+          N이 1 이상이면 순간 변화율의 크기를
+          가상 시간 1당 현재 개체수의 12% 미만으로 제한합니다.
+          이는 실제 시간이나 한 프레임당 변화량이 아닙니다.
+        </p>
+
+        <p class="note">
+          두 수식은 같은 개체수와 환경 조건에서
+          증가·감소 방향과 변화율이 0이 되는 조건을 유지합니다.
+          다만 환경이 계속 변하므로 시간에 따른 결과는 달라집니다.
+          직접 추가·감소 버튼으로 조절한 수량은 즉시 반영되며,
+          수식v2는 그 이후의 자연적인 변화를 완화합니다.
+          배속과 환경 변화 주기는 그대로 유지됩니다.
+        </p>
+      </div>
+    </section>
+  </div>
+</section>
+
+<script>
+"use strict";
+
+// =========================================================
+// 상수와 상태
+// =========================================================
+const $ = id => document.getElementById(id);
+
+const COLORS = ["#15803d", "#b45309", "#7e22ce"];
+const NAMES = ["생산자", "1차 소비자", "2차 소비자"];
+const SHORT_NAMES = ["생산자", "1차", "2차"];
+const EQUILIBRIUM = [500, 100, 20];
+
+const PRESETS = {
+  balanced: [650, 80, 15],
+  equilibrium: [500, 100, 20],
+  herbivoreHigh: [650, 240, 15],
+  predatorHigh: [650, 100, 80],
+  noPredator: [650, 80, 0]
+};
+
+const PARAM = {
+  r: 0.8,
+  K: 1000,
+  a: 0.004,
+  b: 0.01,
+  eH: 0.2,
+  eC: 0.2,
+  dH: 0.1,
+  dC: 0.1,
+  sH: 0.001,
+  sC: 0.005
+};
+
+const FORMULA_V2 = {
+  responseDivisor: 2,
+  maxRelativeRate: 0.12
+};
+
+const STEP = 0.01;
+const SAMPLE_INTERVAL = 0.2;
+const HISTORY_WINDOW = 120;
+
+let state = [...PRESETS.balanced];
+let time = 0;
+let running = false;
+let accumulator = 0;
+let lastTimestamp = null;
+let nextSampleTime = SAMPLE_INTERVAL;
+
+let history = [];
+let changeEvents = [];
+let eventSerial = 0;
+
+let environment = { weather: 0, resource: 0 };
+let formulaVersion = "v1";
+let pyramidCompareEnabled = false;
+let comparisonHours = 5;
+
+const visualSeeds = [[], [], []];
+
+let graphHits = [];
+let pointerPosition = null;
+
+function displayedCounts() {
+  return state.map(value => Math.max(0, Math.round(value)));
+}
+
+function formatNumber(value, digits = 2) {
+  return value.toLocaleString("ko-KR", {
+    maximumFractionDigits: digits
+  });
+}
+
+function deltaText(value) {
+  const absolute = Math.abs(value);
+  const number = absolute > 0 && absolute < 0.01
+    ? "<0.01"
+    : formatNumber(absolute);
+
+  return (value > 0 ? "+" : value < 0 ? "−" : "") + number;
+}
+
+// =========================================================
+// 환경
+// =========================================================
+function gaussianRandom() {
+  const u = Math.max(Number.MIN_VALUE, Math.random());
+
+  return Math.sqrt(-2 * Math.log(u)) *
+    Math.cos(2 * Math.PI * Math.random());
+}
+
+function updateEnvironment(dt) {
+  function advance(value, correlationTime, standardDeviation) {
+    const decay = Math.exp(-dt / correlationTime);
+
+    return value * decay +
+      standardDeviation *
+      Math.sqrt(1 - decay * decay) *
+      gaussianRandom();
+  }
+
+  environment.weather = advance(environment.weather, 9, 0.8);
+  environment.resource = advance(environment.resource, 22, 0.7);
+}
+
+function getConditions() {
+  const weather = Math.tanh(environment.weather);
+  const resource = Math.tanh(environment.resource);
+
+  return {
+    growth: PARAM.r * (1 + 0.28 * weather),
+    capacity: PARAM.K * (1 + 0.25 * resource),
+    mortalityH: PARAM.dH * (1 - 0.18 * weather),
+    mortalityC: PARAM.dC * (1 - 0.12 * weather)
+  };
+}
+
+// =========================================================
+// 수식v1: 기존 계산 그대로 유지
+// =========================================================
+function derivativeV1([P, H, C]) {
+  const p = PARAM;
+  const env = getConditions();
+
+  const herbivory = p.a * P * H;
+  const predation = p.b * H * C;
+
+  return [
+    env.growth * P * (1 - P / env.capacity) - herbivory,
+
+    p.eH * herbivory - predation -
+      env.mortalityH * H - p.sH * H * H,
+
+    p.eC * predation -
+      env.mortalityC * C - p.sC * C * C
+  ];
+}
+
+// =========================================================
+// 수식v2: 변화율이 클수록 강하게 완화
+// =========================================================
+function derivativeV2(values) {
+  const originalRates = derivativeV1(values);
+
+  return originalRates.map((rate, index) => {
+    const population = Math.max(0, values[index]);
+
+    if (population === 0) return 0;
+
+    const rateLimit =
+      FORMULA_V2.maxRelativeRate * Math.max(population, 1);
+
+    const damping =
+      FORMULA_V2.responseDivisor +
+      Math.abs(rate) / rateLimit;
+
+    return rate / damping;
+  });
+}
+
+function derivative(values) {
+  return formulaVersion === "v2"
+    ? derivativeV2(values)
+    : derivativeV1(values);
+}
+
+function shifted(values, slopes, amount) {
+  return values.map((value, i) => value + slopes[i] * amount);
+}
+
+function integrate(values, h) {
+  const k1 = derivative(values);
+  const k2 = derivative(shifted(values, k1, h / 2));
+  const k3 = derivative(shifted(values, k2, h / 2));
+  const k4 = derivative(shifted(values, k3, h));
+
+  return values.map((value, i) =>
+    Math.max(
+      0,
+      value + h *
+      (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]) / 6
+    )
+  );
+}
+
+function recordState() {
+  history.push({ t: time, values: [...state] });
+
+  // 비교 구간 직전 기록 하나는 보간용으로 유지
+  while (
+    history.length > 2 &&
+    history[1].t < time - HISTORY_WINDOW
+  ) {
+    history.shift();
+  }
+}
+
+// =========================================================
+// 개체별 위치와 소비자 이동
+// =========================================================
+function ensureVisualSeeds() {
+  const counts = displayedCounts();
+
+  for (let species = 0; species < 3; species++) {
+    while (visualSeeds[species].length < counts[species]) {
+      visualSeeds[species].push({
+        x: Math.random(),
+        y: Math.random(),
+        angle: Math.random() * Math.PI * 2,
+        speed: 0.02 + Math.random() * 0.025,
+        turnRate: (Math.random() - 0.5) * 1.5
+      });
+    }
+  }
+}
+
+function updateMovement(dt) {
+  if (dt <= 0) return;
+
+  ensureVisualSeeds();
+
+  const counts = displayedCounts();
+  const steps = Math.max(1, Math.ceil(dt / 0.05));
+  const h = dt / steps;
+
+  for (let step = 0; step < steps; step++) {
+    for (let species = 1; species < 3; species++) {
+      for (let i = 0; i < counts[species]; i++) {
+        const seed = visualSeeds[species][i];
+
+        seed.turnRate +=
+          -seed.turnRate * 1.5 * h +
+          gaussianRandom() * 1.8 * Math.sqrt(h);
+
+        seed.turnRate = Math.max(-3, Math.min(3, seed.turnRate));
+        seed.angle += seed.turnRate * h;
+
+        const distance =
+          seed.speed * (species === 1 ? 0.85 : 1.15) * h;
+
+        seed.x += Math.cos(seed.angle) * distance;
+        seed.y += Math.sin(seed.angle) * distance;
+
+        if (seed.x < 0 || seed.x > 1) {
+          seed.x = seed.x < 0 ? -seed.x : 2 - seed.x;
+          seed.angle = Math.PI - seed.angle;
+        }
+
+        if (seed.y < 0 || seed.y > 1) {
+          seed.y = seed.y < 0 ? -seed.y : 2 - seed.y;
+          seed.angle = -seed.angle;
+        }
+
+        seed.x = Math.max(0, Math.min(1, seed.x));
+        seed.y = Math.max(0, Math.min(1, seed.y));
+        seed.angle %= Math.PI * 2;
+      }
+    }
+  }
+}
+
+// =========================================================
+// 개체수 변경과 기록
+// =========================================================
+function appendEventRow(event) {
+  const row = document.createElement("tr");
+  const values = [
+    "#" + event.id,
+    event.t.toFixed(2),
+    NAMES[event.species],
+    deltaText(event.delta),
+    `${formatNumber(event.before, 4)} → ` +
+    `${formatNumber(event.after, 4)}`
+  ];
+
+  values.forEach((text, index) => {
+    const cell = document.createElement("td");
+    cell.textContent = text;
+
+    if (index === 2) {
+      cell.style.color = COLORS[event.species];
+    }
+
+    if (index === 3) {
+      cell.className =
+        event.delta > 0 ? "delta-add" : "delta-remove";
+    }
+
+    row.appendChild(cell);
+  });
+
+  $("eventTableBody").prepend(row);
+  $("noEvents").hidden = true;
+  $("eventTableWrap").hidden = false;
+}
+
+function adjustPopulation(direction) {
+  const amount = $("adjustAmount").valueAsNumber;
+  const species = Number($("adjustSpecies").value);
+  const message = $("adjustMessage");
+
+  if (
+    !Number.isInteger(amount) ||
+    amount < 1 ||
+    amount > 3000
+  ) {
+    message.classList.add("error");
+    message.textContent =
+      "추가·감소할 수량을 1~3,000 사이의 정수로 입력하세요.";
+    $("adjustAmount").focus();
+    return;
+  }
+
+  message.classList.remove("error");
+
+  const before = state[species];
+  const after = direction > 0
+    ? before + amount
+    : Math.max(0, before - amount);
+
+  if (before === after) {
+    message.textContent =
+      `${NAMES[species]}는 현재 0개체이므로 더 줄일 수 없습니다.`;
+    return;
+  }
+
+  // 같은 시각의 변경 전·후 상태를 모두 기록
+  recordState();
+  state[species] = after;
+  recordState();
+
+  if (direction < 0) {
+    visualSeeds[species].length = Math.min(
+      visualSeeds[species].length,
+      Math.max(0, Math.round(after))
+    );
+  }
+
+  ensureVisualSeeds();
+
+  const event = {
+    id: ++eventSerial,
+    t: time,
+    species,
+    before,
+    after,
+    delta: after - before
+  };
+
+  changeEvents.push(event);
+  appendEventRow(event);
+
+  message.textContent =
+    `#${event.id} · t=${time.toFixed(2)} · ` +
+    `${NAMES[species]} ${deltaText(event.delta)}개체 ` +
+    `(${formatNumber(before, 4)} → ${formatNumber(after, 4)})`;
+
+  render();
+}
+
+// =========================================================
+// 실행과 초기화
+// =========================================================
+function setRunning(value) {
+  running = value;
+  $("play").textContent = value
+    ? "일시정지 / Pause"
+    : "시작 / Start";
+}
+
+function reset() {
+  const values = ["initialP", "initialH", "initialC"].map(id => {
+    const input = $(id);
+    return input.value.trim() === ""
+      ? NaN
+      : Number(input.value);
+  });
+
+  if (
+    values.some(value =>
+      !Number.isFinite(value) || value < 0 || value > 3000
+    )
+  ) {
+    $("error").textContent =
+      "시작 개체수는 0~3,000 사이의 숫자로 입력하세요.";
+    return;
+  }
+
+  $("error").textContent = "";
+  setRunning(false);
+
+  state = values;
+  time = 0;
+  accumulator = 0;
+  lastTimestamp = null;
+  nextSampleTime = SAMPLE_INTERVAL;
+
+  history = [];
+  changeEvents = [];
+  eventSerial = 0;
+  graphHits = [];
+  pointerPosition = null;
+
+  environment = { weather: 0, resource: 0 };
+
+  visualSeeds.forEach(seeds => {
+    seeds.length = 0;
+  });
+
+  $("eventTableBody").replaceChildren();
+  $("eventTableWrap").hidden = true;
+  $("noEvents").hidden = false;
+  $("graphTooltip").hidden = true;
+
+  $("adjustMessage").classList.remove("error");
+  $("adjustMessage").textContent =
+    "실행 중 또는 일시정지 상태에서 사용할 수 있습니다.";
+
+  ensureVisualSeeds();
+  recordState();
+  updateFormulaSettingsUI();
+  render();
+}
+
+function syncView() {
+  const pyramidMode = $("viewMode").value === "pyramid";
+
+  $("graphView").hidden = pyramidMode;
+  $("pyramidView").hidden = !pyramidMode;
+  $("graphModeControl").hidden = pyramidMode;
+  $("pyramidCompareControls").hidden = !pyramidMode;
+
+  $("viewTitle").textContent = pyramidMode
+    ? "개체수 피라미드 / Population Pyramid"
+    : "개체수 변화 / Population Graph";
+
+  pointerPosition = null;
+  $("graphTooltip").hidden = true;
+}
+
+// =========================================================
+// 캔버스 공통
+// =========================================================
+function prepareCanvas(canvas) {
+  const rect = canvas.getBoundingClientRect();
+  const ratio = window.devicePixelRatio || 1;
+  const width = Math.max(1, Math.round(rect.width * ratio));
+  const height = Math.max(1, Math.round(rect.height * ratio));
+
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+
+  const ctx = canvas.getContext("2d");
+
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, rect.width, rect.height);
+  ctx.font = '12px Arial, "Malgun Gothic", sans-serif';
+
+  return { ctx, w: rect.width, h: rect.height };
+}
+
+// =========================================================
+// 생태계 화면
+// =========================================================
+function drawWorld() {
+  const { ctx, w, h } = prepareCanvas($("world"));
+  const env = getConditions();
+  const counts = displayedCounts();
+
+  ensureVisualSeeds();
+
+  ctx.fillStyle = "#f1f8ee";
+  ctx.fillRect(0, 0, w, h);
+  ctx.textAlign = "left";
+
+  for (let species = 0; species < 3; species++) {
+    ctx.fillStyle = COLORS[species];
+    ctx.fillText(
+      `${NAMES[species]}: ${counts[species].toLocaleString("ko-KR")}`,
+      12,
+      20 + species * 18
+    );
+  }
+
+  ctx.fillStyle = "#4b5563";
+  ctx.fillText(
+    `환경: 성장 ${(env.growth / PARAM.r * 100).toFixed(0)}% · ` +
+    `자원 ${(env.capacity / PARAM.K * 100).toFixed(0)}%`,
+    12, 78
+  );
+
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#1e40af";
+  ctx.fillText(
+    formulaVersion === "v2" ? "수식v2" : "수식v1",
+    w - 12, 20
+  );
+
+  const habitatWidth = Math.max(1, w - 24);
+  const habitatHeight = Math.max(1, h - 110);
+
+  for (let species = 0; species < 3; species++) {
+    ctx.fillStyle = COLORS[species];
+
+    for (let i = 0; i < counts[species]; i++) {
+      const seed = visualSeeds[species][i];
+      const x = 12 + seed.x * habitatWidth;
+      const y = 98 + seed.y * habitatHeight;
+
+      ctx.beginPath();
+
+      if (species === 0) {
+        ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+      } else if (species === 1) {
+        ctx.ellipse(
+          x, y, 5, 3.5, seed.angle, 0, Math.PI * 2
+        );
+      } else {
+        ctx.moveTo(
+          x + Math.cos(seed.angle) * 6,
+          y + Math.sin(seed.angle) * 6
+        );
+        ctx.lineTo(
+          x + Math.cos(seed.angle + 2.45) * 5,
+          y + Math.sin(seed.angle + 2.45) * 5
+        );
+        ctx.lineTo(
+          x + Math.cos(seed.angle - 2.45) * 5,
+          y + Math.sin(seed.angle - 2.45) * 5
+        );
+        ctx.closePath();
+      }
+
+      ctx.fill();
+    }
+  }
+}
+
+// =========================================================
+// 그래프와 변경 표시
+// =========================================================
+function drawGraph() {
+  const { ctx, w, h } = prepareCanvas($("graph"));
+  const minT = Math.max(0, time - HISTORY_WINDOW);
+  const maxT = Math.max(30, time);
+
+  const visibleEvents = changeEvents.filter(event =>
+    event.t >= minT - 1e-8 && event.t <= maxT
+  );
+
+  const relative = $("graphMode").value === "relative";
+  const valueFor = (value, species) =>
+    relative ? value / EQUILIBRIUM[species] * 100 : value;
+
+  const left = 58;
+  const right = 14;
+  const plotWidth = Math.max(1, w - left - right);
+  const X = t =>
+    left + (t - minT) / (maxT - minT) * plotWidth;
+
+  graphHits = [];
+  ctx.font = '11px Arial, "Malgun Gothic", sans-serif';
+
+  const laneEnds = Array(5).fill(-Infinity);
+  const labels = [];
+
+  visibleEvents.forEach(event => {
+    const text =
+      `#${event.id} t=${event.t.toFixed(2)} ` +
+      `${SHORT_NAMES[event.species]} ${deltaText(event.delta)}`;
+
+    const width = Math.min(
+      plotWidth,
+      ctx.measureText(text).width + 12
+    );
+
+    const eventX = X(event.t);
+    const x = Math.max(
+      left,
+      Math.min(w - right - width, eventX + 5)
+    );
+
+    let lane = laneEnds.findIndex(end => x >= end + 5);
+
+    if (lane < 0) {
+      lane = laneEnds.indexOf(Math.min(...laneEnds));
+    }
+
+    laneEnds[lane] = Math.max(laneEnds[lane], x + width);
+    labels.push({ event, text, x, width, lane, eventX });
+  });
+
+  const laneCount = labels.reduce(
+    (maximum, label) => Math.max(maximum, label.lane + 1),
+    0
+  );
+
+  const top = laneCount ? 30 + laneCount * 23 : 28;
+  const bottom = h - 44;
+  const plotHeight = Math.max(1, bottom - top);
+
+  let largest = relative ? 120 : 600;
+
+  history.forEach(point => {
+    point.values.forEach((value, species) => {
+      largest = Math.max(
+        largest,
+        valueFor(value, species) * 1.12
+      );
+    });
+  });
+
+  state.forEach((value, species) => {
+    largest = Math.max(
+      largest,
+      valueFor(value, species) * 1.12
+    );
+  });
+
+  const yMax = Math.ceil(largest / 20) * 20;
+  const Y = value => top + plotHeight * (1 - value / yMax);
+
+  ctx.fillStyle = "#374151";
+  ctx.textAlign = "left";
+  ctx.fillText(
+    relative ? "기준 개체수 대비 (%)" : "개체수",
+    left, 15
+  );
+
+  ctx.lineWidth = 1;
+
+  for (let i = 0; i <= 5; i++) {
+    const value = yMax * i / 5;
+    const y = Y(value);
+
+    ctx.strokeStyle = "#e5e7eb";
+    ctx.beginPath();
+    ctx.moveTo(left, y);
+    ctx.lineTo(w - right, y);
+    ctx.stroke();
+
+    ctx.fillStyle = "#4b5563";
+    ctx.textAlign = "right";
+    ctx.fillText(
+      Math.round(value).toLocaleString("ko-KR"),
+      left - 7, y + 4
+    );
+  }
+
+  for (let i = 0; i <= 5; i++) {
+    const t = minT + (maxT - minT) * i / 5;
+    const x = X(t);
+
+    ctx.strokeStyle = "#e5e7eb";
+    ctx.beginPath();
+    ctx.moveTo(x, top);
+    ctx.lineTo(x, bottom);
+    ctx.stroke();
+
+    ctx.fillStyle = "#4b5563";
+    ctx.textAlign = "center";
+    ctx.fillText(t.toFixed(0), x, h - 24);
+  }
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(left, top, plotWidth, plotHeight);
+  ctx.clip();
+
+  if (relative) {
+    ctx.strokeStyle = "#94a3b8";
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(left, Y(100));
+    ctx.lineTo(w - right, Y(100));
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  visibleEvents.forEach(event => {
+    const x = X(event.t);
+
+    ctx.strokeStyle = COLORS[event.species];
+    ctx.globalAlpha = 0.55;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x, top);
+    ctx.lineTo(x, bottom);
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+  });
+
+  for (let species = 0; species < 3; species++) {
+    ctx.strokeStyle = COLORS[species];
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+
+    history.forEach((point, index) => {
+      const x = X(point.t);
+      const y = Y(valueFor(point.values[species], species));
+
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+
+    ctx.lineTo(
+      X(time),
+      Y(valueFor(state[species], species))
+    );
+    ctx.stroke();
+  }
+
+  visibleEvents.forEach(event => {
+    const x = X(event.t);
+    const y = Y(valueFor(event.after, event.species));
+
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = "#fff";
+    ctx.fill();
+
+    ctx.strokeStyle = COLORS[event.species];
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+
+  ctx.restore();
+
+  labels.forEach(label => {
+    const { event, text, x, width, lane, eventX } = label;
+    const y = 25 + lane * 23;
+    const color = COLORS[event.species];
+
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.45;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(
+      Math.max(x, Math.min(x + width, eventX)),
+      y + 19
+    );
+    ctx.lineTo(eventX, top);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(x, y, width, 19);
+
+    ctx.strokeStyle = color;
+    ctx.strokeRect(x + 0.5, y + 0.5, width - 1, 18);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x + 3, y, Math.max(1, width - 6), 19);
+    ctx.clip();
+    ctx.fillStyle = color;
+    ctx.textAlign = "left";
+    ctx.fillText(text, x + 6, y + 13);
+    ctx.restore();
+
+    graphHits.push({
+      event, x, y, width,
+      height: 19,
+      lineX: eventX,
+      top, bottom
+    });
+  });
+
+  ctx.fillStyle = "#374151";
+  ctx.textAlign = "center";
+  ctx.fillText(
+    "시간 / Time",
+    left + plotWidth / 2,
+    h - 5
+  );
+
+  updateGraphTooltip();
+}
+
+// =========================================================
+// 그래프 상세 표시
+// =========================================================
+function updateGraphTooltip() {
+  const tooltip = $("graphTooltip");
+
+  if (!pointerPosition) {
+    tooltip.hidden = true;
+    $("graph").style.cursor = "default";
+    return;
+  }
+
+  const { x, y } = pointerPosition;
+
+  const labelHits = graphHits.filter(hit =>
+    x >= hit.x && x <= hit.x + hit.width &&
+    y >= hit.y && y <= hit.y + hit.height
+  );
+
+  const hits = labelHits.length
+    ? [labelHits[labelHits.length - 1]]
+    : graphHits.filter(hit =>
+        Math.abs(x - hit.lineX) <= 7 &&
+        y >= hit.top && y <= hit.bottom
+      );
+
+  $("graph").style.cursor = hits.length ? "help" : "default";
+
+  if (!hits.length) {
+    tooltip.hidden = true;
+    return;
+  }
+
+  tooltip.textContent = hits.slice(-5).map(({ event }) =>
+    `#${event.id} · t=${event.t.toFixed(2)}시간\n` +
+    `${NAMES[event.species]} ${deltaText(event.delta)}개체 ` +
+    `(${event.delta > 0 ? "추가" : "감소"})\n` +
+    `${formatNumber(event.before, 4)} → ` +
+    `${formatNumber(event.after, 4)}`
+  ).join("\n────────────\n") +
+    (hits.length > 5
+      ? "\n나머지 내역은 변경 기록 표를 확인하세요."
+      : "");
+
+  tooltip.hidden = false;
+
+  const wrap = $("graphWrap");
+  const maxLeft = Math.max(
+    4, wrap.clientWidth - tooltip.offsetWidth - 4
+  );
+  const maxTop = Math.max(
+    4, wrap.clientHeight - tooltip.offsetHeight - 4
+  );
+
+  tooltip.style.left =
+    Math.min(maxLeft, Math.max(4, x + 12)) + "px";
+  tooltip.style.top =
+    Math.min(maxTop, Math.max(4, y + 12)) + "px";
+}
+
+// =========================================================
+// 과거 개체수 조회
+// =========================================================
+function getPopulationAt(targetTime) {
+  const epsilon = 1e-8;
+
+  if (
+    !history.length ||
+    targetTime < -epsilon ||
+    targetTime > time + epsilon
+  ) return null;
+
+  targetTime = Math.max(0, targetTime);
+
+  if (targetTime < history[0].t - epsilon) return null;
+
+  // 같은 시각에는 마지막 변경 후 상태 선택
+  let low = 0;
+  let high = history.length;
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+
+    if (history[middle].t <= targetTime + epsilon) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+
+  const index = low - 1;
+  if (index < 0) return null;
+
+  const before = history[index];
+
+  if (Math.abs(targetTime - before.t) <= epsilon) {
+    return [...before.values];
+  }
+
+  const after = history[index + 1] || {
+    t: time,
+    values: state
+  };
+
+  const duration = after.t - before.t;
+
+  if (duration <= epsilon) return [...before.values];
+
+  const ratio = Math.max(
+    0, Math.min(1, (targetTime - before.t) / duration)
+  );
+
+  return before.values.map((value, i) =>
+    value + (after.values[i] - value) * ratio
+  );
+}
+
+// =========================================================
+// 피라미드 화살표
+// =========================================================
+function comparisonArrowPath(cx, cy, direction) {
+  if (direction === 0) {
+    return [
+      `M ${cx - 29} ${cy}`,
+      `L ${cx - 13} ${cy - 15}`,
+      `L ${cx - 13} ${cy - 6}`,
+      `L ${cx + 13} ${cy - 6}`,
+      `L ${cx + 13} ${cy - 15}`,
+      `L ${cx + 29} ${cy}`,
+      `L ${cx + 13} ${cy + 15}`,
+      `L ${cx + 13} ${cy + 6}`,
+      `L ${cx - 13} ${cy + 6}`,
+      `L ${cx - 13} ${cy + 15}`,
+      "Z"
+    ].join(" ");
+  }
+
+  const points = [
+    [-28, -10], [5, -10], [5, -23],
+    [29, 0], [5, 23], [5, 10], [-28, 10]
+  ];
+
+  return points.map(([x, y], index) =>
+    `${index === 0 ? "M" : "L"} ` +
+    `${cx + x * direction} ${cy + y}`
+  ).join(" ") + " Z";
+}
+
+function updatePyramidComparison() {
+  $("pyramidComparisonArrows").setAttribute(
+    "display",
+    pyramidCompareEnabled ? "inline" : "none"
+  );
+  $("pyramidCompareNote").hidden = !pyramidCompareEnabled;
+
+  if (!pyramidCompareEnabled) return;
+
+  const targetTime = time - comparisonHours;
+  const past = getPopulationAt(targetTime);
+  const rows = [
+    { index: 2, suffix: "C", y: 50 },
+    { index: 1, suffix: "H", y: 150 },
+    { index: 0, suffix: "P", y: 250 }
+  ];
+
+  rows.forEach(row => {
+    const arrow = $("compareArrow" + row.suffix);
+    const caption = $("compareCaption" + row.suffix);
+    const title = $("compareTitle" + row.suffix);
+
+    caption.setAttribute("x", 48);
+    caption.setAttribute("y", row.y + 39);
+
+    if (!past) {
+      arrow.setAttribute("d", "");
+      caption.textContent = "대기";
+      title.textContent = "비교할 과거 기록을 기다리는 중";
+      return;
+    }
+
+    const previous = past[row.index];
+    const current = state[row.index];
+    const difference = current - previous;
+    const tolerance = 1e-6 * Math.max(
+      1, Math.abs(previous), Math.abs(current)
+    );
+
+    const direction =
+      difference > tolerance ? 1 :
+      difference < -tolerance ? -1 : 0;
+
+    const description =
+      direction === 1 ? "증가" :
+      direction === -1 ? "감소" : "변화 거의 없음";
+
+    arrow.setAttribute(
+      "d",
+      comparisonArrowPath(48, row.y, direction)
+    );
+    arrow.setAttribute(
+      "stroke",
+      direction === 0 ? "#64748b" : COLORS[row.index]
+    );
+
+    caption.textContent = direction === 0
+      ? "변화 없음"
+      : deltaText(difference);
+
+    title.textContent =
+      `${NAMES[row.index]}: ` +
+      `${comparisonHours}시간 전 대비 ${description}\n` +
+      `과거: ${formatNumber(previous, 4)}\n` +
+      `현재: ${formatNumber(current, 4)}\n` +
+      `차이: ${deltaText(difference)}`;
+  });
+
+  if (!past) {
+    const remaining = Math.max(0, comparisonHours - time);
+
+    $("pyramidCompareNote").textContent = remaining > 0
+      ? `${comparisonHours}시간 전과 비교하려면 ` +
+        `가상 시간이 ${remaining.toFixed(1)}만큼 더 필요합니다.`
+      : "해당 시점의 기록이 아직 없습니다.";
+    return;
+  }
+
+  $("pyramidCompareNote").textContent =
+    `${comparisonHours}시간 전 ` +
+    `(t=${Math.max(0, targetTime).toFixed(1)}) 대비 ` +
+    "→ 증가 / ← 감소 / ↔ 변화 거의 없음. " +
+    "화살표 아래 숫자는 과거 대비 개체수 차이이며, " +
+    "직접 추가하거나 줄인 변화도 포함됩니다.";
+}
+
+function drawPyramid() {
+  const widths = state.map(value => value * 0.48);
+  const gutter = pyramidCompareEnabled ? 100 : 0;
+  const habitatWidth = Math.max(
+    500, Math.ceil(Math.max(...widths) + 20)
+  );
+  const canvasWidth = habitatWidth + gutter;
+  const centerX = gutter + habitatWidth / 2;
+
+  $("pyramid").setAttribute("width", canvasWidth);
+  $("pyramid").style.width = canvasWidth + "px";
+  $("pyramid").setAttribute(
+    "viewBox", `0 0 ${canvasWidth} 300`
+  );
+
+  $("pyramidCenter").setAttribute("x1", centerX);
+  $("pyramidCenter").setAttribute("x2", centerX);
+
+  const sections = [
+    ["bottomPart", "bottomLabel", "pyramidP"],
+    ["middlePart", "middleLabel", "pyramidH"],
+    ["topPart", "topLabel", "pyramidC"]
+  ];
+
+  sections.forEach(([rect, label, output], index) => {
+    $(rect).setAttribute("width", widths[index]);
+    $(rect).setAttribute("x", centerX - widths[index] / 2);
+    $(label).setAttribute("x", centerX);
+
+    const count =
+      Math.round(state[index]).toLocaleString("ko-KR");
+
+    $(label).textContent = `${NAMES[index]}: ${count}`;
+    $(output).textContent = count;
+    $(output).title =
+      `계산값: ${formatNumber(state[index], 4)}`;
+  });
+
+  updatePyramidComparison();
+}
+
+// =========================================================
+// 하단 정보와 수식 설정
+// =========================================================
+function updateSummary() {
+  $("time").textContent = time.toFixed(1);
+  $("time").title = time.toFixed(4);
+
+  const counts = displayedCounts();
+  const rates = derivative(state);
+
+  ["P", "H", "C"].forEach((suffix, index) => {
+    $("count" + suffix).textContent =
+      counts[index].toLocaleString("ko-KR");
+    $("count" + suffix).title =
+      `계산값: ${state[index].toFixed(4)}`;
+
+    const relativeRate =
+      rates[index] / Math.max(state[index], 1);
+
+    const arrow =
+      relativeRate > 0.002 ? "↑" :
+      relativeRate < -0.002 ? "↓" : "↔";
+
+    const description =
+      arrow === "↑" ? "증가" :
+      arrow === "↓" ? "감소" : "변화가 작음";
+
+    $("direction" + suffix).textContent = arrow;
+    $("direction" + suffix).title = description;
+    $("direction" + suffix).setAttribute(
+      "aria-label", description
+    );
+  });
+
+  const selected = Number($("adjustSpecies").value);
+  $("selectedPopulation").textContent =
+    counts[selected].toLocaleString("ko-KR");
+  $("selectedPopulation").style.color = COLORS[selected];
+  $("selectedPopulation").title = state[selected].toFixed(4);
+}
+
+function updateFormulaSettingsUI() {
+  const formulaName =
+    formulaVersion === "v2" ? "수식v2" : "수식v1";
+
+  $("formulaSettingsButton").textContent =
+    `시뮬레이션 수식 설정 · 현재: ${formulaName}`;
+
+  document.querySelectorAll(
+    'input[name="formulaVersion"]'
+  ).forEach(input => {
+    input.checked = input.value === formulaVersion;
+  });
+
+  $("formulaStatus").textContent = formulaVersion === "v2"
+    ? "현재 수식v2를 사용 중입니다. " +
+      "급격한 증가·감소를 완화하여 반영합니다."
+    : "현재 수식v1을 사용 중입니다. " +
+      "기존 변화 속도로 반영합니다.";
+}
+
+// =========================================================
+// 이벤트
+// =========================================================
+$("preset").addEventListener("change", () => {
+  const preset = PRESETS[$("preset").value];
+  if (!preset) return;
+
+  ["initialP", "initialH", "initialC"].forEach((id, index) => {
+    $(id).value = preset[index];
+  });
+});
+
+["initialP", "initialH", "initialC"].forEach(id => {
+  $(id).addEventListener("input", () => {
+    $("preset").value = "custom";
+  });
+});
+
+$("apply").addEventListener("click", reset);
+$("play").addEventListener("click", () => {
+  setRunning(!running);
+});
+
+$("addPopulation").addEventListener("click", () => {
+  adjustPopulation(1);
+});
+
+$("removePopulation").addEventListener("click", () => {
+  adjustPopulation(-1);
+});
+
+$("adjustSpecies").addEventListener("change", updateSummary);
+$("graphMode").addEventListener("change", render);
+
+$("viewMode").addEventListener("change", () => {
+  syncView();
+  render();
+});
+
+$("togglePyramidCompare").addEventListener("click", () => {
+  pyramidCompareEnabled = !pyramidCompareEnabled;
+
+  $("togglePyramidCompare").setAttribute(
+    "aria-pressed", String(pyramidCompareEnabled)
+  );
+  $("togglePyramidCompare").textContent =
+    pyramidCompareEnabled ? "과거 비교: 켜짐" : "과거 비교: 꺼짐";
+
+  render();
+});
+
+$("compareHours").addEventListener("input", () => {
+  const input = $("compareHours");
+  const value = input.valueAsNumber;
+
+  if (
+    !Number.isFinite(value) ||
+    value < 0.2 ||
+    value > HISTORY_WINDOW
+  ) {
+    input.setCustomValidity(
+      "비교 시간은 0.2~120 사이로 입력하세요."
+    );
+    return;
+  }
+
+  input.setCustomValidity("");
+  comparisonHours = value;
+  render();
+});
+
+$("compareHours").addEventListener("change", () => {
+  if (!$("compareHours").checkValidity()) {
+    $("compareHours").reportValidity();
+  }
+});
+
+$("infoButton").addEventListener("click", () => {
+  const expanded =
+    $("infoButton").getAttribute("aria-expanded") === "true";
+
+  $("infoButton").setAttribute(
+    "aria-expanded", String(!expanded)
+  );
+  $("infoButton").setAttribute(
+    "aria-label",
+    expanded ? "시뮬레이션 안내 열기" : "시뮬레이션 안내 닫기"
+  );
+  $("infoPanel").hidden = expanded;
+});
+
+$("formulaSettingsButton").addEventListener("click", () => {
+  const button = $("formulaSettingsButton");
+  const expanded =
+    button.getAttribute("aria-expanded") === "true";
+
+  button.setAttribute("aria-expanded", String(!expanded));
+  $("formulaSettingsPanel").hidden = expanded;
+});
+
+document.querySelectorAll(
+  'input[name="formulaVersion"]'
+).forEach(input => {
+  input.addEventListener("change", event => {
+    if (!event.target.checked) return;
+
+    const selectedVersion = event.target.value;
+
+    if (
+      selectedVersion !== "v1" &&
+      selectedVersion !== "v2"
+    ) return;
+
+    if (formulaVersion === selectedVersion) return;
+
+    // 전환 시점 기록. 시간과 개체수는 유지
+    recordState();
+    formulaVersion = selectedVersion;
+    updateFormulaSettingsUI();
+    render();
+  });
+});
+
+function locateGraphPointer(event) {
+  const rect = $("graph").getBoundingClientRect();
+
+  pointerPosition = {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top
+  };
+
+  updateGraphTooltip();
+}
+
+$("graph").addEventListener("pointermove", locateGraphPointer);
+$("graph").addEventListener("pointerdown", locateGraphPointer);
+
+$("graph").addEventListener("pointerleave", () => {
+  pointerPosition = null;
+  $("graphTooltip").hidden = true;
+  $("graph").style.cursor = "default";
+});
+
+document.addEventListener("pointerdown", event => {
+  if (!$("graphWrap").contains(event.target)) {
+    pointerPosition = null;
+    $("graphTooltip").hidden = true;
+  }
+});
+
+// =========================================================
+// 화면 갱신과 반복 실행
+// =========================================================
+function render() {
+  drawWorld();
+
+  if ($("viewMode").value === "pyramid") {
+    drawPyramid();
+  } else {
+    drawGraph();
+  }
+
+  updateSummary();
+}
+
+function frame(timestamp) {
+  const elapsed = lastTimestamp === null
+    ? 0
+    : Math.min((timestamp - lastTimestamp) / 1000, 0.1);
+
+  lastTimestamp = timestamp;
+
+  if (running) {
+    accumulator += elapsed * 2 * Number($("speed").value);
+    let advancedTime = 0;
+
+    while (accumulator >= STEP) {
+      updateEnvironment(STEP);
+      const next = integrate(state, STEP);
+
+      if (next.some(value => !Number.isFinite(value))) {
+        setRunning(false);
+        accumulator = 0;
+        $("error").textContent =
+          "수치 계산 오류입니다. 시작 조건을 초기화하세요.";
+        break;
+      }
+
+      state = next;
+      time += STEP;
+      advancedTime += STEP;
+      accumulator -= STEP;
+
+      if (time + 1e-9 >= nextSampleTime) {
+        recordState();
+        nextSampleTime += SAMPLE_INTERVAL;
+      }
+    }
+
+    updateMovement(advancedTime);
+  }
+
+  render();
+  requestAnimationFrame(frame);
+}
+
+document.addEventListener("visibilitychange", () => {
+  lastTimestamp = null;
+});
+
+syncView();
+reset();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
