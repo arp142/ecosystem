@@ -1,0 +1,3117 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>생태계 동적 평형 시뮬레이션</title>
+<style>
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 20px;
+    color: #1f2937;
+    background: #f3f4f6;
+    font-family: Arial, "Malgun Gothic", sans-serif;
+  }
+
+  h1 { margin: 0 0 10px; font-size: 24px; }
+  h2 { margin: 0 0 12px; font-size: 18px; }
+  h3 { margin: 0 0 10px; font-size: 15px; }
+  h4 { margin: 14px 0 5px; font-size: 14px; }
+
+  .description, .note {
+    color: #4b5563;
+    font-size: 14px;
+    line-height: 1.75;
+  }
+
+  .controls, .panel, .summary, .intervention {
+    padding: 16px;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+  }
+
+  .controls, .adjust-controls, .view-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 12px;
+  }
+
+  .controls { margin: 16px 0; }
+  .view-controls { margin-bottom: 12px; }
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+  }
+
+  input, select, button {
+    padding: 9px;
+    font: inherit;
+  }
+
+  input[type="number"] { width: 110px; }
+
+  button {
+    cursor: pointer;
+    color: #1f2937;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+  }
+
+  button:hover:not(:disabled) { filter: brightness(0.97); }
+
+  button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible {
+    outline: 3px solid #60a5fa;
+    outline-offset: 3px;
+  }
+
+  .producer { color: #15803d; }
+  .herbivore { color: #b45309; }
+  .predator { color: #7e22ce; }
+
+  #error {
+    min-height: 22px;
+    color: #b91c1c;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .intervention {
+    margin-bottom: 16px;
+    background: #f8fbff;
+    border-color: #bfdbfe;
+  }
+
+  .intervention h2 {
+    color: #1e40af;
+    font-size: 16px;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .section-header h2 { margin: 0; }
+
+  .help-button {
+    display: inline-flex;
+    flex: 0 0 30px;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    color: #1d4ed8;
+    background: #eff6ff;
+    border-color: #93c5fd;
+    border-radius: 50%;
+    font: italic bold 19px Georgia, serif;
+  }
+
+  .help-button[aria-expanded="true"] {
+    color: #fff;
+    background: #2563eb;
+    border-color: #2563eb;
+  }
+
+  .help-panel {
+    margin-bottom: 14px;
+    padding: 12px 14px;
+    color: #475569;
+    background: #fff;
+    border: 1px solid #bfdbfe;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.85;
+  }
+
+  .help-panel p { margin: 0; }
+  .help-panel p + p { margin-top: 8px; }
+
+  .adjust-button {
+    min-width: 105px;
+    font-weight: bold;
+  }
+
+  .add-button {
+    color: #166534;
+    background: #dcfce7;
+    border-color: #86efac;
+  }
+
+  .remove-button {
+    color: #991b1b;
+    background: #fee2e2;
+    border-color: #fca5a5;
+  }
+
+  .current-population {
+    padding: 10px 0;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .environment-events {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid #dbeafe;
+  }
+
+  #adjustMessage {
+    min-height: 24px;
+    margin: 10px 0 0;
+    font-size: 14px;
+    line-height: 1.75;
+  }
+
+  #adjustMessage.error { color: #b91c1c; }
+
+  .equilibrium-status {
+    margin: 14px 0 0;
+    padding: 10px 12px;
+    color: #334155;
+    background: #fff;
+    border: 1px solid #dbeafe;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.8;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .panel { min-width: 0; }
+
+  .canvas-wrap {
+    position: relative;
+    width: 100%;
+    height: 420px;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .graph-tooltip {
+    position: absolute;
+    z-index: 5;
+    max-width: min(340px, 95%);
+    max-height: 95%;
+    overflow: hidden;
+    padding: 10px 12px;
+    color: #fff;
+    background: rgba(15, 23, 42, 0.96);
+    border-radius: 7px;
+    box-shadow: 0 4px 14px #0002;
+    font-size: 12px;
+    line-height: 1.7;
+    white-space: pre-line;
+    pointer-events: none;
+  }
+
+  .event-history {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  .table-wrap {
+    max-height: 220px;
+    overflow: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  th, td {
+    padding: 8px 10px;
+    text-align: right;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    color: #475569;
+    background: #f1f5f9;
+  }
+
+  th:nth-child(3), td:nth-child(3),
+  th:nth-child(6), td:nth-child(6) {
+    text-align: left;
+  }
+
+  tbody tr:last-child td { border-bottom: 0; }
+
+  .delta-add { color: #15803d; font-weight: bold; }
+  .delta-remove { color: #b91c1c; font-weight: bold; }
+
+  #noEvents {
+    margin: 0;
+    color: #64748b;
+    font-size: 13px;
+  }
+
+  .pyramid-area {
+    height: 370px;
+    padding-top: 24px;
+    overflow-x: auto;
+  }
+
+  #pyramid {
+    display: block;
+    width: 500px;
+    height: 300px;
+    margin: 0 auto;
+  }
+
+  .pyramid-text {
+    fill: #1f2937;
+    stroke: #fff;
+    stroke-width: 4px;
+    paint-order: stroke fill;
+    stroke-linejoin: round;
+    font-size: 14px;
+    font-weight: bold;
+    text-anchor: middle;
+    dominant-baseline: middle;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .pyramid-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 12px;
+    font-size: 14px;
+  }
+
+  #pyramidCompareControls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: 12px;
+  }
+
+  .compare-time-input {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  #compareHours { width: 80px; }
+
+  #togglePyramidCompare[aria-pressed="true"] {
+    color: #166534;
+    background: #dcfce7;
+    border-color: #86efac;
+  }
+
+  .comparison-arrow {
+    fill: #fff;
+    stroke-width: 3;
+    stroke-linejoin: round;
+  }
+
+  .comparison-caption {
+    fill: #374151;
+    font-size: 11px;
+    text-anchor: middle;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #pyramidCompareNote {
+    padding: 10px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+  }
+
+  .summary { margin-top: 16px; }
+
+  .summary-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .summary-values {
+    display: grid;
+    flex: 1;
+    min-width: 0;
+    grid-template-columns: repeat(auto-fit, 230px);
+    gap: 12px 18px;
+    overflow-x: auto;
+  }
+
+  .stat {
+    display: grid;
+    grid-template-columns: 100px 100px 24px;
+    align-items: center;
+    column-gap: 3px;
+    width: 230px;
+    min-height: 30px;
+    white-space: nowrap;
+  }
+
+  .stat-number {
+    overflow: hidden;
+    text-align: right;
+    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-direction {
+    text-align: center;
+    font-weight: bold;
+  }
+
+  .info-button {
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    color: #475569;
+    border-radius: 50%;
+    font: italic bold 23px Georgia, serif;
+  }
+
+  .info-button[aria-expanded="true"] {
+    color: #fff;
+    background: #2563eb;
+    border-color: #2563eb;
+  }
+
+  .info-panel {
+    margin-top: 16px;
+    padding: 16px 18px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+  }
+
+  .info-list {
+    margin: 0;
+    padding-left: 25px;
+    color: #475569;
+    font-size: 14px;
+    line-height: 1.85;
+  }
+
+  .info-list li + li { margin-top: 5px; }
+
+  .formula-settings {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid #d1d5db;
+  }
+
+  .formula-settings-button {
+    width: 100%;
+    padding: 11px 14px;
+    color: #1e40af;
+    background: #eff6ff;
+    border-color: #93c5fd;
+    font-weight: bold;
+    text-align: left;
+  }
+
+  .formula-settings-button[aria-expanded="true"] {
+    background: #dbeafe;
+  }
+
+  .formula-options {
+    min-width: 0;
+    margin: 12px 0 0;
+    padding: 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+  }
+
+  .formula-options legend {
+    padding: 0 6px;
+    color: #334155;
+    font-size: 14px;
+    font-weight: bold;
+  }
+
+  .formula-choice {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 10px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+
+  .formula-choice:hover { background: #eff6ff; }
+
+  .formula-choice input {
+    flex: 0 0 auto;
+    margin: 3px 0 0;
+  }
+
+  .formula-choice strong {
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .formula-choice small {
+    display: block;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  .formula-status {
+    margin: 10px 0 0;
+    color: #1e40af;
+    font-size: 13px;
+    line-height: 1.75;
+  }
+
+  .formula-descriptions {
+    margin-top: 14px;
+    color: #475569;
+    font-size: 13px;
+    line-height: 1.85;
+  }
+
+  .formula-descriptions p { margin: 5px 0; }
+
+  .formula-equation {
+    padding: 8px 10px;
+    overflow-x: auto;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 5px;
+    font-family: Consolas, monospace;
+    white-space: nowrap;
+  }
+
+  [hidden] { display: none !important; }
+
+  @media (max-width: 850px) {
+    body { padding: 12px; }
+    .layout { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+
+<body>
+<h1>생태계 동적 평형 | Ecosystem Dynamic Equilibrium</h1>
+
+<p class="description">
+  풀 → 토끼 → 여우의 상호작용을 관찰하세요.<br>
+  기본 모델은 수식v3이며,
+  동적 평형 관찰의 시작 조건은 풀 70% · 토끼 60 · 여우 18입니다.
+</p>
+
+<div class="controls">
+  <label>
+    시작 조건 / Preset
+    <select id="preset">
+      <option value="balanced">동적 평형 관찰 · 풀 70% / 토끼 60 / 여우 18</option>
+      <option value="equilibrium">v1·v2 기준 평형 · 500 / 100 / 20</option>
+      <option value="herbivoreHigh">1차 소비자 과다</option>
+      <option value="predatorHigh">2차 소비자 과다</option>
+      <option value="noPredator">2차 소비자 없음</option>
+      <option value="custom">직접 입력 / Custom</option>
+    </select>
+  </label>
+
+  <label class="producer">
+    <span id="initialPLabel">생산자 · 풀 총량</span>
+    <input id="initialP" type="number"
+           min="0" max="2400" step="any" value="1680">
+  </label>
+
+  <label class="herbivore">
+    1차 소비자 / Rabbits
+    <input id="initialH" type="number"
+           min="0" max="3000" step="1" value="60">
+  </label>
+
+  <label class="predator">
+    2차 소비자 / Foxes
+    <input id="initialC" type="number"
+           min="0" max="3000" step="1" value="18">
+  </label>
+
+  <button id="apply" type="button">조건 적용·초기화</button>
+  <button id="play" type="button">시작 / Start</button>
+
+  <label>
+    배속 / Speed
+    <select id="speed">
+      <option value="0.5">0.5×</option>
+      <option value="1" selected>1×</option>
+      <option value="2">2×</option>
+      <option value="4">4×</option>
+      <option value="8">8×</option>
+    </select>
+  </label>
+</div>
+
+<div id="error" role="alert"></div>
+
+<!-- v3 설정: 개체수 조절보다 위에 배치 -->
+<section id="abmControls" class="intervention"
+         aria-labelledby="abmTitle">
+  <div class="section-header">
+    <button id="abmHelpButton" type="button" class="help-button"
+            aria-label="수식v3 설정 설명 열기"
+            aria-expanded="false" aria-controls="abmHelp">i</button>
+    <h2 id="abmTitle">수식v3 설정 · 환경 사건</h2>
+  </div>
+
+  <div id="abmHelp" class="help-panel" hidden>
+    <p>
+      수식v3는 풀 격자와 동물의 이동·섭식·사냥·에너지·번식·죽음을
+      계산하는 <strong>개체 기반 모델</strong>입니다.
+      로트카–볼테라 미분방정식을 직접 푸는 방식은 아닙니다.
+    </p>
+    <p>
+      <strong>풀 재생 속도:</strong> 한 틱에 각 칸에 더해지는 풀의 양입니다.<br>
+      <strong>토끼·여우 번식 확률:</strong>
+      번식에 필요한 에너지가 있는 개체가 틱마다 새끼를 낳을 확률입니다.<br>
+      <strong>사냥 성공 확률:</strong>
+      배고픈 여우가 포획 거리 안의 토끼를 잡을 확률입니다.
+    </p>
+    <p>
+      유효한 값을 입력하면 이후 계산부터 적용됩니다.
+      0.05는 5%입니다.
+      가뭄·여우 사냥 버튼은 아래 개체수 조절 영역에 있습니다.
+    </p>
+    <p>
+      가상 시간 1 = 10틱입니다.
+      2틱마다 모은 최근 150개 표본으로 토끼·여우의 변동계수를 구합니다.
+      둘 중 큰 CV가 0.12 미만이면 안정 평형,
+      0.4 미만이면 동적 평형, 그 이상이면 불안정입니다.
+      이는 최근 변동에 대한 판정이며 장기 공존을 보장하지 않습니다.
+    </p>
+    <p>
+      초기 풀은 입력한 총량을 60×40칸에 균등하게 배치합니다.
+      풀 총량 1,680은 평균 70%입니다.
+      풀이 0이어도 재생될 수 있지만,
+      멸종한 토끼·여우는 직접 추가해야 다시 나타납니다.
+    </p>
+  </div>
+
+  <div class="adjust-controls">
+    <label>
+      풀 재생 속도 / 틱
+      <input id="grassRegrowth" type="number"
+             min="0" max="1" step="0.001" value="0.006">
+    </label>
+    <label>
+      토끼 번식 확률 / 틱
+      <input id="rabbitBirthRate" type="number"
+             min="0" max="1" step="0.01" value="0.05">
+    </label>
+    <label>
+      여우 번식 확률 / 틱
+      <input id="foxBirthRate" type="number"
+             min="0" max="1" step="0.01" value="0.03">
+    </label>
+    <label>
+      사냥 성공 확률
+      <input id="foxHuntSuccess" type="number"
+             min="0" max="1" step="0.01" value="0.08">
+    </label>
+  </div>
+
+  <p id="abmStatus" class="equilibrium-status"
+     role="status" aria-live="polite">
+    평형 판정 대기
+  </p>
+</section>
+
+<!-- 개체수 조절: v3 설정 아래 -->
+<section class="intervention" aria-labelledby="adjustTitle">
+  <div class="section-header">
+    <button id="adjustHelpButton" type="button" class="help-button"
+            aria-label="개체수 조절 설명 열기"
+            aria-expanded="false" aria-controls="adjustHelp">i</button>
+    <h2 id="adjustTitle">개체수 조절 / Add &amp; Remove</h2>
+  </div>
+
+  <div id="adjustHelp" class="help-panel" hidden>
+    <p>
+      개체군과 수량을 선택한 뒤 <strong>＋ 추가</strong> 또는
+      <strong>－ 줄이기</strong>를 누르세요.
+      한 번에 1~3,000 사이의 정수로 조절할 수 있습니다.
+      현재 수량보다 많이 줄이면 0까지만 감소합니다.
+    </p>
+    <p>
+      시간과 실행·일시정지 상태는 유지되며 변경은 즉시 적용됩니다.
+      실제 변경량은 그래프와 변경 기록 표에 남습니다.
+    </p>
+    <p>
+      <strong>v3의 생산자는 풀 총량 Σg입니다.</strong>
+      최대 2,400이며 1,680은 평균 70%입니다.
+      풀 추가는 최대 2,400까지만 적용됩니다.
+      추가한 동물은 무작위 위치에서 시작하며,
+      토끼의 초기 에너지는 1, 여우는 1.2입니다.
+    </p>
+    <p>
+      <strong>가뭄:</strong> 모든 칸의 현재 풀을 15%만 남깁니다.
+      이후 풀은 설정된 속도로 재생됩니다.<br>
+      <strong>여우 사냥:</strong> 여우마다 70% 확률로 제거합니다.
+      실제 제거 비율이 정확히 70%인 것은 아닙니다.
+    </p>
+    <p>
+      환경 사건은 <strong>v3에서만</strong> 사용할 수 있으며
+      일시정지 중에도 즉시 적용됩니다.
+    </p>
+  </div>
+
+  <div class="adjust-controls">
+    <label>
+      변경할 개체군
+      <select id="adjustSpecies">
+        <option value="0">생산자 · 풀 총량 / Grass</option>
+        <option value="1">1차 소비자 / Rabbits</option>
+        <option value="2">2차 소비자 / Foxes</option>
+      </select>
+    </label>
+
+    <label>
+      추가·감소할 수량
+      <input id="adjustAmount" type="number"
+             min="1" max="3000" step="1" value="10">
+    </label>
+
+    <button id="addPopulation" type="button"
+            class="adjust-button add-button">＋ 추가</button>
+    <button id="removePopulation" type="button"
+            class="adjust-button remove-button">－ 줄이기</button>
+
+    <div class="current-population">
+      현재 선택 수량:
+      <strong id="selectedPopulation">1,680</strong>
+    </div>
+  </div>
+
+  <div class="environment-events" role="group"
+       aria-label="수식v3 환경 사건">
+    <button id="drought" type="button">가뭄 · 풀 15% 유지</button>
+    <button id="foxCull" type="button">여우 사냥 · 각각 70% 확률 제거</button>
+  </div>
+
+  <p id="adjustMessage" role="status" aria-live="polite">
+    실행 중 또는 일시정지 상태에서 사용할 수 있습니다.
+  </p>
+</section>
+
+<div class="layout">
+  <section class="panel">
+    <h2>생태계 / Ecosystem</h2>
+
+    <div class="canvas-wrap">
+      <canvas id="world" role="img"
+              aria-label="풀 격자와 토끼·여우의 위치"></canvas>
+    </div>
+
+    <p id="worldModelNote" class="note"></p>
+  </section>
+
+  <section class="panel">
+    <h2 id="viewTitle">개체군 변화 / Population Graph</h2>
+
+    <div class="view-controls">
+      <label>
+        보기 / View
+        <select id="viewMode">
+          <option value="graph">개체수 그래프 / Graph</option>
+          <option value="pyramid">피라미드 / Pyramid</option>
+        </select>
+      </label>
+
+      <label id="graphModeControl">
+        세로축 / Y-axis
+        <select id="graphMode">
+          <option value="population">개체수 / 풀 총량</option>
+          <option value="relative">표시 기준 500 / 100 / 20 대비 %</option>
+        </select>
+      </label>
+
+      <div id="pyramidCompareControls" hidden>
+        <button id="togglePyramidCompare" type="button"
+                aria-pressed="false">과거 비교: 꺼짐</button>
+        <label>
+          비교 시점
+          <span class="compare-time-input">
+            <input id="compareHours" type="number"
+                   min="0.2" max="120" step="0.1" value="5">
+            <span>가상 시간 전</span>
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <div id="graphView">
+      <div id="graphWrap" class="canvas-wrap">
+        <canvas id="graph" role="img"
+                aria-label="개체군 변화와 직접 변경 시점 그래프"></canvas>
+        <div id="graphTooltip" class="graph-tooltip" hidden></div>
+      </div>
+
+      <p class="note">
+        <span class="producer">■ 생산자 / 풀 총량</span> ·
+        <span class="herbivore">■ 토끼</span> ·
+        <span class="predator">■ 여우</span><br>
+        점선 = 직접 조절·환경 사건 / ＋ 추가 / − 감소<br>
+        변경 표시 위에 마우스를 올리거나 터치하면 상세 내역이 나타납니다.<br>
+        최근 가상 시간 120 표시 · v3의 가상 시간 1 = 10틱<br>
+        500 / 100 / 20은 표시 기준이며 v3의 평형값이 아닙니다.
+      </p>
+    </div>
+
+    <div id="pyramidView" hidden>
+      <div class="pyramid-area">
+        <svg id="pyramid" xmlns="http://www.w3.org/2000/svg"
+             width="500" height="300" viewBox="0 0 500 300"
+             role="img" aria-labelledby="pyramidTitle pyramidDesc">
+          <title id="pyramidTitle">실시간 개체군 수치 피라미드</title>
+          <desc id="pyramidDesc">
+            아래부터 생산자, 토끼, 여우입니다.
+            v3의 생산자는 풀 총량이며 동물 개체수와 단위가 다릅니다.
+          </desc>
+
+          <line id="pyramidCenter" x1="250" y1="0" x2="250" y2="300"
+                stroke="#cbd5e1" stroke-dasharray="4 4"></line>
+
+          <rect id="topPart" y="0" height="100"
+                fill="#7e22ce" fill-opacity="0.8"></rect>
+          <rect id="middlePart" y="100" height="100"
+                fill="#b45309" fill-opacity="0.8"></rect>
+          <rect id="bottomPart" y="200" height="100"
+                fill="#15803d" fill-opacity="0.8"></rect>
+
+          <text id="topLabel" class="pyramid-text" y="50"></text>
+          <text id="middleLabel" class="pyramid-text" y="150"></text>
+          <text id="bottomLabel" class="pyramid-text" y="250"></text>
+
+          <g id="pyramidComparisonArrows" display="none">
+            <g>
+              <title id="compareTitleC"></title>
+              <path id="compareArrowC" class="comparison-arrow"></path>
+              <text id="compareCaptionC" class="comparison-caption"></text>
+            </g>
+            <g>
+              <title id="compareTitleH"></title>
+              <path id="compareArrowH" class="comparison-arrow"></path>
+              <text id="compareCaptionH" class="comparison-caption"></text>
+            </g>
+            <g>
+              <title id="compareTitleP"></title>
+              <path id="compareArrowP" class="comparison-arrow"></path>
+              <text id="compareCaptionP" class="comparison-caption"></text>
+            </g>
+          </g>
+        </svg>
+      </div>
+
+      <p id="pyramidCompareNote" class="note" hidden></p>
+
+      <div class="pyramid-legend">
+        <span class="producer">생산자 / 풀 <strong id="pyramidP"></strong></span>
+        <span class="herbivore">토끼 <strong id="pyramidH"></strong></span>
+        <span class="predator">여우 <strong id="pyramidC"></strong></span>
+      </div>
+
+      <p class="note">
+        아래부터 생산자 / 풀 → 토끼 → 여우.<br>
+        층 높이 100px · 값 1당 너비 0.48px, 동일 축척.<br>
+        v3는 풀 총량과 동물 개체수의 수치 비교입니다.
+        생물량·에너지 피라미드가 아니며 서로 다른 단위를 함께 표시합니다.
+        넓어지면 가로로 스크롤할 수 있습니다.
+      </p>
+    </div>
+
+    <section class="event-history" aria-labelledby="eventHistoryTitle">
+      <h3 id="eventHistoryTitle">변경 기록 / Change Log</h3>
+      <p id="noEvents">아직 변경 기록이 없습니다.</p>
+
+      <div id="eventTableWrap" class="table-wrap" hidden>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">번호</th>
+              <th scope="col">시각</th>
+              <th scope="col">개체군</th>
+              <th scope="col">변경량</th>
+              <th scope="col">변경 전 → 후</th>
+              <th scope="col">사유</th>
+            </tr>
+          </thead>
+          <tbody id="eventTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+</div>
+
+<section class="summary" aria-label="시뮬레이션 정보">
+  <div class="summary-header">
+    <div class="summary-values">
+      <div class="stat">
+        <span>가상 시간:</span>
+        <strong id="time" class="stat-number">0.0</strong>
+        <span></span>
+      </div>
+      <div class="stat producer">
+        <span id="summaryLabelP">풀 총량:</span>
+        <strong id="countP" class="stat-number">1,680</strong>
+        <span id="directionP" class="stat-direction"></span>
+      </div>
+      <div class="stat herbivore">
+        <span id="summaryLabelH">토끼:</span>
+        <strong id="countH" class="stat-number">60</strong>
+        <span id="directionH" class="stat-direction"></span>
+      </div>
+      <div class="stat predator">
+        <span id="summaryLabelC">여우:</span>
+        <strong id="countC" class="stat-number">18</strong>
+        <span id="directionC" class="stat-direction"></span>
+      </div>
+    </div>
+
+    <button id="infoButton" class="info-button" type="button"
+            aria-label="시뮬레이션 안내 열기"
+            aria-expanded="false" aria-controls="infoPanel">i</button>
+  </div>
+
+  <div id="infoPanel" class="info-panel" hidden>
+    <h3>시뮬레이션 안내</h3>
+    <ol class="info-list">
+      <li>v1·v2는 연속 개체수 모델, v3는 공간·에너지 기반 개체 모델입니다.</li>
+      <li>기본값은 v3이며, 풀 70% · 토끼 60 · 여우 18로 시작합니다.</li>
+      <li>v3의 풀은 60×40칸에 분포하며 총량 2,400이 평균 100%입니다.</li>
+      <li>초기 풀은 균등 배치하고, 초기 동물은 무작위 위치에 생성합니다.</li>
+      <li>조건 적용·초기화는 시간·그래프·변경 기록을 초기화합니다.
+          선택한 모델과 v3 설정값은 유지됩니다.</li>
+      <li>직접 조절·환경 사건은 시간과 실행 여부를 유지하며 즉시 적용됩니다.</li>
+      <li>v3의 풀은 0에서 재생될 수 있지만 멸종한 동물은 직접 추가해야 합니다.</li>
+      <li>v1·v2의 이동은 시각 효과이고, v3의 위치는 섭식·사냥에 사용됩니다.</li>
+      <li>v3의 공간은 가장자리가 반대편과 연결되며 거리 계산도 이를 반영합니다.</li>
+      <li>v1·v2의 화살표는 순간 변화율, v3는 직전 틱의 자연 변화입니다.</li>
+      <li>피라미드 과거 비교에는 직접 조절·환경 사건도 포함됩니다.</li>
+      <li>모델 전환은 시간과 기존 기록을 유지합니다.
+          v3 진입 시 위치·에너지 상태를 새로 구성하고 동물 수는 정수로 맞춥니다.</li>
+      <li>서로 다른 모델의 시간 단위는 생태학적으로 보정된 동일 단위가 아닙니다.
+          모델 전환 지점은 그래프에 별도 마커로 표시하지 않습니다.</li>
+      <li>모든 데이터는 메모리에만 있으며 새로고침하면 사라집니다.</li>
+    </ol>
+
+    <section class="formula-settings" aria-label="시뮬레이션 수식 설정">
+      <button id="formulaSettingsButton" class="formula-settings-button"
+              type="button" aria-expanded="false"
+              aria-controls="formulaSettingsPanel">
+        시뮬레이션 수식 설정 · 현재: 수식v3
+      </button>
+
+      <div id="formulaSettingsPanel" hidden>
+        <fieldset class="formula-options">
+          <legend>사용할 모델 선택</legend>
+
+          <label class="formula-choice">
+            <input type="radio" name="formulaVersion" value="v3" checked>
+            <span>
+              <strong>수식v3 · 로트카–볼테라형 개체 기반 모델 · 기본</strong>
+              <small>
+                풀 격자와 동물의 이동·에너지·섭식·사냥·번식·죽음을 계산합니다.
+                로트카–볼테라 미분방정식을 직접 푸는 방식은 아닙니다.
+              </small>
+            </span>
+          </label>
+
+          <label class="formula-choice">
+            <input type="radio" name="formulaVersion" value="v1">
+            <span>
+              <strong>수식v1 · 기존 반응</strong>
+              <small>
+                생산자 성장, 섭식·포식, 사망, 밀도 의존 감소를
+                연속 개체수 변화율로 계산합니다.
+              </small>
+            </span>
+          </label>
+
+          <label class="formula-choice">
+            <input type="radio" name="formulaVersion" value="v2">
+            <span>
+              <strong>수식v2 · 완만한 반응</strong>
+              <small>
+                v1의 변화율을 완화합니다.
+                급격한 증가·감소일수록 더 강하게 완화합니다.
+              </small>
+            </span>
+          </label>
+        </fieldset>
+
+        <p id="formulaStatus" class="formula-status"
+           role="status" aria-live="polite"></p>
+
+        <p class="note">
+          시간과 기존 기록은 유지됩니다.
+          v3로 전환할 때 풀 총량은 2,400 이하여야 하며,
+          동물 수에 소수가 있으면 확인 후 반올림합니다.
+        </p>
+      </div>
+
+      <div class="formula-descriptions">
+        <h4>수식v1</h4>
+        <p>
+          생산자의 로지스틱 성장, 토끼의 섭식, 여우의 포식,
+          소비자의 사망과 밀도 영향을 계산합니다.
+          환경은 확률적으로 변하며 성장률·수용력·사망률에 영향을 줍니다.
+          기준 환경에서 500 / 100 / 20이 양의 기준 평형입니다.
+        </p>
+
+        <h4>수식v2</h4>
+        <p>
+          같은 상태에서 v1의 증가·감소 방향과 변화율 0 조건을 유지하면서
+          자연 변화율을 완화합니다.
+          단순 배속 변경이나 과거 상태를 참조하는 시간 지연 모델이 아닙니다.
+        </p>
+        <p class="formula-equation">
+          F2 = F1 / (2 + |F1| / (0.12 × max(N, 1)))
+        </p>
+        <p>
+          N이 1 이상이면 순간 상대 변화율의 크기를
+          가상 시간당 12% 미만으로 제한합니다.
+          한 시간 동안 누적 변화가 반드시 12% 이하라는 뜻은 아닙니다.
+          직접 조절은 즉시 적용되고 환경 갱신 속도도 그대로입니다.
+        </p>
+
+        <h4>수식v3 · 개체 기반 모델</h4>
+        <p>
+          매 틱 풀 재생 → 토끼 행동 → 여우 행동 순으로 계산합니다.
+          새끼는 부모 위치에서 태어나 다음 틱부터 행동합니다.
+          행동 순서는 무작위로 섞어 순서 편향을 줄입니다.
+        </p>
+        <p class="formula-equation">
+          g ← min(1, g + 풀 재생 속도)
+        </p>
+        <p>
+          토끼: 속도 0.55, 방향 변화 ±0.45,
+          풀 섭식 최대 0.3, 에너지 전환율 0.7,
+          에너지 소모 0.03, 최대 에너지 3.
+          에너지가 1.6보다 크면 설정 확률로 번식하며
+          부모와 새끼가 에너지를 절반씩 나눕니다.
+        </p>
+        <p>
+          여우: 에너지 1.9 미만일 때 반경 6 안의 가장 가까운 토끼를 추적합니다.
+          속도 0.65, 포획 거리 1.85 미만,
+          포획 에너지 +0.5, 틱당 에너지 소모 0.018입니다.
+          에너지가 1.8보다 크면 설정 확률로 번식합니다.
+          토끼·여우 모두 에너지가 0 이하이면 죽습니다.
+        </p>
+        <p>
+          유한한 풀, 배부른 여우의 사냥 중단, 공간적 만남이
+          개체군 상호작용에 영향을 줍니다.
+          확률과 초기 상태에 따라 진동·멸종·불안정이 나타날 수 있으며
+          항상 평형이나 공존에 도달하는 것은 아닙니다.
+        </p>
+      </div>
+    </section>
+  </div>
+</section>
+
+<script>
+"use strict";
+
+// =========================================================
+// 상수·상태
+// =========================================================
+const $ = id => document.getElementById(id);
+const COLORS = ["#15803d", "#b45309", "#7e22ce"];
+const NAMES = ["생산자", "1차 소비자", "2차 소비자"];
+const SHORT_NAMES = ["풀", "토끼", "여우"];
+const REFERENCE = [500, 100, 20];
+
+const PRESETS = {
+  balanced: [1680, 60, 18],
+  equilibrium: [500, 100, 20],
+  herbivoreHigh: [650, 240, 15],
+  predatorHigh: [650, 100, 80],
+  noPredator: [650, 80, 0]
+};
+
+const PARAM = {
+  r: 0.8, K: 1000,
+  a: 0.004, b: 0.01,
+  eH: 0.2, eC: 0.2,
+  dH: 0.1, dC: 0.1,
+  sH: 0.001, sC: 0.005
+};
+
+const FORMULA_V2 = {
+  responseDivisor: 2,
+  maxRelativeRate: 0.12
+};
+
+const ABM = {
+  width: 60,
+  height: 40,
+  grassRegrowth: 0.006,
+  rabbitSpeed: 0.55,
+  rabbitTurn: 0.45,
+  rabbitBite: 0.3,
+  rabbitEfficiency: 0.7,
+  rabbitCost: 0.03,
+  rabbitBirthThreshold: 1.6,
+  rabbitBirthRate: 0.05,
+  rabbitInitialEnergy: 1,
+  foxSpeed: 0.65,
+  foxTurn: 0.45,
+  foxHungerThreshold: 1.9,
+  foxSearchRadius: 6,
+  foxCatchDistance: 1.85,
+  foxHuntSuccess: 0.08,
+  foxFoodEnergy: 0.5,
+  foxCost: 0.018,
+  foxBirthThreshold: 1.8,
+  foxBirthRate: 0.03,
+  foxInitialEnergy: 1.2,
+  maxEnergy: 3
+};
+
+const GRASS_CAPACITY = ABM.width * ABM.height;
+const STEP = 0.01;
+const ABM_TICK_TIME = 0.1;
+const SAMPLE_INTERVAL = 0.2;
+const HISTORY_WINDOW = 120;
+const CV_SAMPLE_COUNT = 150;
+
+let formulaVersion = "v3";
+let state = [...PRESETS.balanced];
+let time = 0;
+let running = false;
+let accumulator = 0;
+let lastTimestamp = null;
+let nextSampleTime = SAMPLE_INTERVAL;
+
+let history = [];
+let changeEvents = [];
+let eventSerial = 0;
+let environment = { weather: 0, resource: 0 };
+
+let grass = new Float64Array(GRASS_CAPACITY);
+let rabbits = [];
+let foxes = [];
+let abmTick = 0;
+let equilibriumSamples = [];
+let lastABMRates = [0, 0, 0];
+
+const visualSeeds = [[], [], []];
+
+let pyramidCompareEnabled = false;
+let comparisonHours = 5;
+let graphHits = [];
+let pointerPosition = null;
+let needsRender = true;
+
+// =========================================================
+// 공통 도우미
+// =========================================================
+function isABM() {
+  return formulaVersion === "v3";
+}
+
+function speciesName(index) {
+  return isABM()
+    ? ["풀 총량", "토끼", "여우"][index]
+    : NAMES[index];
+}
+
+function formatNumber(value, digits = 2) {
+  return value.toLocaleString("ko-KR", {
+    maximumFractionDigits: digits
+  });
+}
+
+function displayValue(index) {
+  return isABM() && index === 0
+    ? formatNumber(state[index], 2)
+    : formatNumber(Math.max(0, Math.round(state[index])), 0);
+}
+
+function displayedCounts() {
+  return state.map(value => Math.max(0, Math.round(value)));
+}
+
+function deltaText(value) {
+  const absolute = Math.abs(value);
+  const text = absolute > 0 && absolute < 0.01
+    ? "<0.01"
+    : formatNumber(absolute);
+
+  return (value > 0 ? "+" : value < 0 ? "−" : "") + text;
+}
+
+function wrap(value, size) {
+  return ((value % size) + size) % size;
+}
+
+function torusDelta(delta, size) {
+  return delta - Math.round(delta / size) * size;
+}
+
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+function gaussianRandom() {
+  const u = Math.max(Number.MIN_VALUE, Math.random());
+
+  return Math.sqrt(-2 * Math.log(u)) *
+    Math.cos(2 * Math.PI * Math.random());
+}
+
+function requestRender() {
+  needsRender = true;
+}
+
+// =========================================================
+// v1·v2 환경
+// =========================================================
+function updateEnvironment(dt) {
+  function advance(value, correlationTime, standardDeviation) {
+    const decay = Math.exp(-dt / correlationTime);
+
+    return value * decay +
+      standardDeviation *
+      Math.sqrt(1 - decay * decay) *
+      gaussianRandom();
+  }
+
+  environment.weather = advance(environment.weather, 9, 0.8);
+  environment.resource = advance(environment.resource, 22, 0.7);
+}
+
+function getConditions() {
+  const weather = Math.tanh(environment.weather);
+  const resource = Math.tanh(environment.resource);
+
+  return {
+    growth: PARAM.r * (1 + 0.28 * weather),
+    capacity: PARAM.K * (1 + 0.25 * resource),
+    mortalityH: PARAM.dH * (1 - 0.18 * weather),
+    mortalityC: PARAM.dC * (1 - 0.12 * weather)
+  };
+}
+
+// =========================================================
+// v1·v2 변화율·RK4
+// =========================================================
+function derivativeV1([P, H, C]) {
+  const p = PARAM;
+  const env = getConditions();
+  const herbivory = p.a * P * H;
+  const predation = p.b * H * C;
+
+  return [
+    env.growth * P * (1 - P / env.capacity) - herbivory,
+    p.eH * herbivory - predation -
+      env.mortalityH * H - p.sH * H * H,
+    p.eC * predation -
+      env.mortalityC * C - p.sC * C * C
+  ];
+}
+
+function derivativeV2(values) {
+  return derivativeV1(values).map((rate, index) => {
+    const population = Math.max(0, values[index]);
+    if (population === 0) return 0;
+
+    const limit =
+      FORMULA_V2.maxRelativeRate * Math.max(population, 1);
+
+    return rate / (
+      FORMULA_V2.responseDivisor + Math.abs(rate) / limit
+    );
+  });
+}
+
+function derivative(values) {
+  return formulaVersion === "v2"
+    ? derivativeV2(values)
+    : derivativeV1(values);
+}
+
+function shifted(values, slopes, amount) {
+  return values.map((value, i) => value + slopes[i] * amount);
+}
+
+function integrate(values, h) {
+  const k1 = derivative(values);
+  const k2 = derivative(shifted(values, k1, h / 2));
+  const k3 = derivative(shifted(values, k2, h / 2));
+  const k4 = derivative(shifted(values, k3, h));
+
+  return values.map((value, i) =>
+    Math.max(
+      0,
+      value + h *
+      (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]) / 6
+    )
+  );
+}
+
+// =========================================================
+// v3 풀·동물
+// =========================================================
+function createAnimal(species, parent = null, energy = null) {
+  return {
+    x: parent ? parent.x : Math.random() * ABM.width,
+    y: parent ? parent.y : Math.random() * ABM.height,
+    angle: Math.random() * Math.PI * 2,
+    energy: energy ?? (
+      species === 1
+        ? ABM.rabbitInitialEnergy
+        : ABM.foxInitialEnergy
+    ),
+    alive: true
+  };
+}
+
+function sumGrass() {
+  let total = 0;
+  for (let i = 0; i < grass.length; i++) total += grass[i];
+  return Math.max(0, Math.min(GRASS_CAPACITY, total));
+}
+
+function syncABMState() {
+  state = [sumGrass(), rabbits.length, foxes.length];
+}
+
+function clearEquilibriumWindow() {
+  abmTick = 0;
+  equilibriumSamples = [];
+  lastABMRates = [0, 0, 0];
+}
+
+function initializeABM(values) {
+  grass.fill(values[0] / GRASS_CAPACITY);
+
+  rabbits = Array.from(
+    { length: values[1] },
+    () => createAnimal(1)
+  );
+
+  foxes = Array.from(
+    { length: values[2] },
+    () => createAnimal(2)
+  );
+
+  clearEquilibriumWindow();
+  syncABMState();
+}
+
+function moveAnimal(animal, speed) {
+  animal.x = wrap(
+    animal.x + Math.cos(animal.angle) * speed,
+    ABM.width
+  );
+
+  animal.y = wrap(
+    animal.y + Math.sin(animal.angle) * speed,
+    ABM.height
+  );
+}
+
+function setGrassTotal(target) {
+  target = Math.max(0, Math.min(GRASS_CAPACITY, target));
+  const current = sumGrass();
+
+  if (target === 0) {
+    grass.fill(0);
+    return;
+  }
+
+  if (target === GRASS_CAPACITY) {
+    grass.fill(1);
+    return;
+  }
+
+  if (target < current && current > 0) {
+    const ratio = target / current;
+
+    for (let i = 0; i < grass.length; i++) {
+      grass[i] *= ratio;
+    }
+  } else if (target > current) {
+    const space = GRASS_CAPACITY - current;
+    const ratio = space > 0 ? (target - current) / space : 0;
+
+    for (let i = 0; i < grass.length; i++) {
+      grass[i] = Math.min(1, grass[i] + (1 - grass[i]) * ratio);
+    }
+  }
+}
+
+// 토끼 공간 인덱스
+function buildRabbitIndex() {
+  const cols = 10;
+  const rows = 8;
+  const cellW = ABM.width / cols;
+  const cellH = ABM.height / rows;
+
+  const bins = Array.from(
+    { length: cols * rows },
+    () => []
+  );
+
+  for (const rabbit of rabbits) {
+    const col = Math.floor(rabbit.x / cellW);
+    const row = Math.floor(rabbit.y / cellH);
+    bins[row * cols + col].push(rabbit);
+  }
+
+  return { cols, rows, cellW, cellH, bins };
+}
+
+function nearestRabbit(fox, index) {
+  const { cols, rows, cellW, cellH, bins } = index;
+
+  const cx = Math.floor(fox.x / cellW);
+  const cy = Math.floor(fox.y / cellH);
+  const rangeX = Math.ceil(ABM.foxSearchRadius / cellW);
+  const rangeY = Math.ceil(ABM.foxSearchRadius / cellH);
+
+  let nearest = null;
+  let bestSquared = ABM.foxSearchRadius ** 2;
+
+  for (let oy = -rangeY; oy <= rangeY; oy++) {
+    for (let ox = -rangeX; ox <= rangeX; ox++) {
+      const col = wrap(cx + ox, cols);
+      const row = wrap(cy + oy, rows);
+
+      for (const rabbit of bins[row * cols + col]) {
+        if (!rabbit.alive) continue;
+
+        const dx = torusDelta(rabbit.x - fox.x, ABM.width);
+        const dy = torusDelta(rabbit.y - fox.y, ABM.height);
+        const squared = dx * dx + dy * dy;
+
+        if (
+          squared <= bestSquared &&
+          (!nearest || squared < bestSquared)
+        ) {
+          nearest = rabbit;
+          bestSquared = squared;
+        }
+      }
+    }
+  }
+
+  return nearest;
+}
+
+function advanceABMTick() {
+  const before = [...state];
+
+  // 1. 풀 재생
+  for (let i = 0; i < grass.length; i++) {
+    grass[i] = Math.min(1, grass[i] + ABM.grassRegrowth);
+  }
+
+  shuffle(rabbits);
+  shuffle(foxes);
+
+  const rabbitBabies = [];
+  const survivingRabbits = [];
+
+  // 2. 토끼: 이동 → 섭식 → 에너지 → 생존·번식
+  for (const rabbit of rabbits) {
+    rabbit.angle +=
+      (Math.random() * 2 - 1) * ABM.rabbitTurn;
+
+    moveAnimal(rabbit, ABM.rabbitSpeed);
+
+    const cell =
+      Math.floor(rabbit.y) * ABM.width +
+      Math.floor(rabbit.x);
+
+    const eaten = Math.min(grass[cell], ABM.rabbitBite);
+    grass[cell] -= eaten;
+
+    rabbit.energy = Math.min(
+      ABM.maxEnergy,
+      rabbit.energy - ABM.rabbitCost +
+      ABM.rabbitEfficiency * eaten
+    );
+
+    if (rabbit.energy <= 0) {
+      rabbit.alive = false;
+      continue;
+    }
+
+    if (
+      rabbit.energy > ABM.rabbitBirthThreshold &&
+      Math.random() < ABM.rabbitBirthRate
+    ) {
+      rabbit.energy /= 2;
+
+      rabbitBabies.push(
+        createAnimal(1, rabbit, rabbit.energy)
+      );
+    }
+
+    survivingRabbits.push(rabbit);
+  }
+
+  rabbits = survivingRabbits;
+  const index = buildRabbitIndex();
+
+  const foxBabies = [];
+  const survivingFoxes = [];
+
+  // 3. 여우: 추적·배회 → 이동 → 포획 → 소모 → 생존·번식
+  for (const fox of foxes) {
+    const hungry = fox.energy < ABM.foxHungerThreshold;
+    const target = hungry ? nearestRabbit(fox, index) : null;
+
+    if (target) {
+      fox.angle = Math.atan2(
+        torusDelta(target.y - fox.y, ABM.height),
+        torusDelta(target.x - fox.x, ABM.width)
+      );
+    } else {
+      fox.angle +=
+        (Math.random() * 2 - 1) * ABM.foxTurn;
+    }
+
+    moveAnimal(fox, ABM.foxSpeed);
+
+    if (hungry && target && target.alive) {
+      const dx = torusDelta(target.x - fox.x, ABM.width);
+      const dy = torusDelta(target.y - fox.y, ABM.height);
+
+      if (
+        dx * dx + dy * dy < ABM.foxCatchDistance ** 2 &&
+        Math.random() < ABM.foxHuntSuccess
+      ) {
+        target.alive = false;
+        fox.energy = Math.min(
+          ABM.maxEnergy,
+          fox.energy + ABM.foxFoodEnergy
+        );
+      }
+    }
+
+    fox.energy -= ABM.foxCost;
+
+    if (fox.energy <= 0) {
+      fox.alive = false;
+      continue;
+    }
+
+    if (
+      fox.energy > ABM.foxBirthThreshold &&
+      Math.random() < ABM.foxBirthRate
+    ) {
+      fox.energy /= 2;
+      foxBabies.push(createAnimal(2, fox, fox.energy));
+    }
+
+    survivingFoxes.push(fox);
+  }
+
+  // 새끼는 틱 종료 후 합류
+  rabbits = rabbits
+    .filter(rabbit => rabbit.alive)
+    .concat(rabbitBabies);
+
+  foxes = survivingFoxes.concat(foxBabies);
+
+  syncABMState();
+
+  lastABMRates = state.map(
+    (value, i) => (value - before[i]) / ABM_TICK_TIME
+  );
+
+  abmTick++;
+
+  // 직접 변경용 history와 분리한 2틱 간격 표본
+  if (abmTick % 2 === 0) {
+    equilibriumSamples.push([rabbits.length, foxes.length]);
+
+    if (equilibriumSamples.length > CV_SAMPLE_COUNT) {
+      equilibriumSamples.shift();
+    }
+  }
+}
+
+// =========================================================
+// v3 평형 판정
+// =========================================================
+function coefficientOfVariation(values) {
+  const mean =
+    values.reduce((sum, value) => sum + value, 0) /
+    values.length;
+
+  if (mean <= 0) return Infinity;
+
+  const variance = values.reduce(
+    (sum, value) => sum + (value - mean) ** 2,
+    0
+  ) / values.length;
+
+  return Math.sqrt(variance) / mean;
+}
+
+function equilibriumText() {
+  if (!rabbits.length && !foxes.length) {
+    return `붕괴 · 토끼와 여우 모두 멸종 · ${abmTick}틱`;
+  }
+
+  if (!rabbits.length) {
+    return `멸종 · 토끼 0 · ${abmTick}틱`;
+  }
+
+  if (!foxes.length) {
+    return `멸종 · 여우 0 · ${abmTick}틱`;
+  }
+
+  if (equilibriumSamples.length < CV_SAMPLE_COUNT) {
+    return (
+      `평형 판정 대기 · ${equilibriumSamples.length}` +
+      ` / ${CV_SAMPLE_COUNT}개 표본 · ${abmTick}틱`
+    );
+  }
+
+  const rabbitCV = coefficientOfVariation(
+    equilibriumSamples.map(values => values[0])
+  );
+
+  const foxCV = coefficientOfVariation(
+    equilibriumSamples.map(values => values[1])
+  );
+
+  const cv = Math.max(rabbitCV, foxCV);
+
+  const status = cv < 0.12
+    ? "안정 평형"
+    : cv < 0.4
+      ? "동적 평형"
+      : "불안정";
+
+  return (
+    `${status} · CV ${cv.toFixed(3)} · ` +
+    `토끼 ${rabbitCV.toFixed(3)} / 여우 ${foxCV.toFixed(3)}` +
+    ` · ${abmTick}틱`
+  );
+}
+
+// =========================================================
+// v1·v2 시각 효과
+// =========================================================
+function ensureVisualSeeds() {
+  const counts = displayedCounts();
+
+  for (let species = 0; species < 3; species++) {
+    while (visualSeeds[species].length < counts[species]) {
+      visualSeeds[species].push({
+        x: Math.random(),
+        y: Math.random(),
+        angle: Math.random() * Math.PI * 2,
+        speed: 0.02 + Math.random() * 0.025,
+        turnRate: (Math.random() - 0.5) * 1.5
+      });
+    }
+  }
+}
+
+function updateMovement(dt) {
+  if (dt <= 0) return;
+  ensureVisualSeeds();
+
+  const counts = displayedCounts();
+  const steps = Math.max(1, Math.ceil(dt / 0.05));
+  const h = dt / steps;
+
+  for (let step = 0; step < steps; step++) {
+    for (let species = 1; species < 3; species++) {
+      for (let i = 0; i < counts[species]; i++) {
+        const seed = visualSeeds[species][i];
+
+        seed.turnRate +=
+          -seed.turnRate * 1.5 * h +
+          gaussianRandom() * 1.8 * Math.sqrt(h);
+
+        seed.turnRate = Math.max(
+          -3, Math.min(3, seed.turnRate)
+        );
+
+        seed.angle += seed.turnRate * h;
+
+        const distance =
+          seed.speed * (species === 1 ? 0.85 : 1.15) * h;
+
+        seed.x += Math.cos(seed.angle) * distance;
+        seed.y += Math.sin(seed.angle) * distance;
+
+        if (seed.x < 0 || seed.x > 1) {
+          seed.x = seed.x < 0 ? -seed.x : 2 - seed.x;
+          seed.angle = Math.PI - seed.angle;
+        }
+
+        if (seed.y < 0 || seed.y > 1) {
+          seed.y = seed.y < 0 ? -seed.y : 2 - seed.y;
+          seed.angle = -seed.angle;
+        }
+
+        seed.x = Math.max(0, Math.min(1, seed.x));
+        seed.y = Math.max(0, Math.min(1, seed.y));
+        seed.angle %= Math.PI * 2;
+      }
+    }
+  }
+}
+
+// =========================================================
+// 기록·직접 변경
+// =========================================================
+function recordState() {
+  history.push({ t: time, values: [...state] });
+
+  while (
+    history.length > 2 &&
+    history[1].t < time - HISTORY_WINDOW
+  ) {
+    history.shift();
+  }
+}
+
+function appendEventRow(event) {
+  const row = document.createElement("tr");
+
+  const values = [
+    "#" + event.id,
+    event.t.toFixed(2),
+    event.name,
+    deltaText(event.delta),
+    `${formatNumber(event.before, 4)} → ${formatNumber(event.after, 4)}`,
+    event.reason
+  ];
+
+  values.forEach((text, index) => {
+    const cell = document.createElement("td");
+    cell.textContent = text;
+
+    if (index === 2) cell.style.color = COLORS[event.species];
+
+    if (index === 3) {
+      cell.className = event.delta > 0
+        ? "delta-add"
+        : "delta-remove";
+    }
+
+    row.appendChild(cell);
+  });
+
+  $("eventTableBody").prepend(row);
+  $("noEvents").hidden = true;
+  $("eventTableWrap").hidden = false;
+}
+
+function logChange(species, before, after, reason) {
+  if (Math.abs(after - before) < 1e-10) return null;
+
+  const event = {
+    id: ++eventSerial,
+    t: time,
+    species,
+    name: speciesName(species),
+    before,
+    after,
+    delta: after - before,
+    reason
+  };
+
+  changeEvents.push(event);
+  appendEventRow(event);
+  return event;
+}
+
+function adjustPopulation(direction) {
+  const amount = $("adjustAmount").valueAsNumber;
+  const species = Number($("adjustSpecies").value);
+  const message = $("adjustMessage");
+
+  if (
+    !Number.isInteger(amount) ||
+    amount < 1 ||
+    amount > 3000
+  ) {
+    message.classList.add("error");
+    message.textContent =
+      "추가·감소할 수량을 1~3,000 사이 정수로 입력하세요.";
+    $("adjustAmount").focus();
+    return;
+  }
+
+  const before = state[species];
+  recordState();
+
+  if (isABM()) {
+    if (species === 0) {
+      setGrassTotal(before + direction * amount);
+    } else {
+      const animals = species === 1 ? rabbits : foxes;
+
+      if (direction > 0) {
+        for (let i = 0; i < amount; i++) {
+          animals.push(createAnimal(species));
+        }
+      } else {
+        shuffle(animals);
+        animals.splice(0, Math.min(amount, animals.length));
+      }
+    }
+
+    syncABMState();
+  } else {
+    state[species] = direction > 0
+      ? before + amount
+      : Math.max(0, before - amount);
+
+    if (direction < 0) {
+      visualSeeds[species].length = Math.min(
+        visualSeeds[species].length,
+        Math.round(state[species])
+      );
+    }
+
+    ensureVisualSeeds();
+  }
+
+  recordState();
+
+  const event = logChange(
+    species,
+    before,
+    state[species],
+    direction > 0 ? "직접 추가" : "직접 감소"
+  );
+
+  message.classList.remove("error");
+
+  message.textContent = event
+    ? (
+      `#${event.id} · t=${time.toFixed(2)} · ` +
+      `${event.name} ${deltaText(event.delta)} ` +
+      `(${formatNumber(before, 4)} → ` +
+      `${formatNumber(state[species], 4)})`
+    )
+    : "현재 값이 상한 또는 하한에 있어 변경되지 않았습니다.";
+
+  requestRender();
+}
+
+function applyEnvironmentEvent(type) {
+  if (!isABM()) return;
+
+  const before = [...state];
+  recordState();
+
+  let species;
+  let reason;
+
+  if (type === "drought") {
+    for (let i = 0; i < grass.length; i++) {
+      grass[i] *= 0.15;
+    }
+
+    species = 0;
+    reason = "가뭄 · 풀 15% 유지";
+  } else {
+    foxes = foxes.filter(() => Math.random() >= 0.7);
+    species = 2;
+    reason = "여우 사냥 · 각각 70% 확률 제거";
+  }
+
+  syncABMState();
+  recordState();
+
+  const event = logChange(
+    species, before[species], state[species], reason
+  );
+
+  $("adjustMessage").classList.remove("error");
+  $("adjustMessage").textContent =
+    reason + (
+      event
+        ? ` · 실제 변경량 ${deltaText(event.delta)}`
+        : " · 이번에는 변경이 없습니다."
+    );
+
+  requestRender();
+}
+
+// =========================================================
+// 실행·초기화·모델 전환
+// =========================================================
+function setRunning(value) {
+  running = value;
+  lastTimestamp = null;
+
+  $("play").textContent = running
+    ? "일시정지 / Pause"
+    : "시작 / Start";
+
+  requestRender();
+}
+
+function reset() {
+  const values = ["initialP", "initialH", "initialC"].map(id => {
+    const input = $(id);
+    return input.value.trim() === "" ? NaN : Number(input.value);
+  });
+
+  if (
+    values.some(value =>
+      !Number.isFinite(value) || value < 0 || value > 3000
+    )
+  ) {
+    $("error").textContent =
+      "시작 값은 0~3,000 사이의 숫자로 입력하세요.";
+    return;
+  }
+
+  if (
+    isABM() &&
+    (
+      values[0] > GRASS_CAPACITY ||
+      !Number.isInteger(values[1]) ||
+      !Number.isInteger(values[2])
+    )
+  ) {
+    $("error").textContent =
+      "v3에서는 풀 총량을 0~2,400으로, " +
+      "토끼와 여우는 0~3,000 사이 정수로 입력하세요.";
+    return;
+  }
+
+  $("error").textContent = "";
+  setRunning(false);
+
+  state = values;
+  time = 0;
+  accumulator = 0;
+  lastTimestamp = null;
+  nextSampleTime = SAMPLE_INTERVAL;
+
+  history = [];
+  changeEvents = [];
+  eventSerial = 0;
+  environment = { weather: 0, resource: 0 };
+
+  graphHits = [];
+  pointerPosition = null;
+  clearEquilibriumWindow();
+
+  visualSeeds.forEach(seeds => { seeds.length = 0; });
+
+  if (isABM()) {
+    initializeABM(values);
+  } else {
+    grass.fill(0);
+    rabbits = [];
+    foxes = [];
+    ensureVisualSeeds();
+  }
+
+  $("eventTableBody").replaceChildren();
+  $("eventTableWrap").hidden = true;
+  $("noEvents").hidden = false;
+  $("graphTooltip").hidden = true;
+  $("adjustMessage").classList.remove("error");
+  $("adjustMessage").textContent =
+    "실행 중 또는 일시정지 상태에서 사용할 수 있습니다.";
+
+  recordState();
+  updateFormulaSettingsUI();
+  requestRender();
+}
+
+function changeFormula(selected) {
+  if (!["v1", "v2", "v3"].includes(selected)) return;
+  if (selected === formulaVersion) return;
+
+  const previous = formulaVersion;
+  const before = [...state];
+
+  if (selected === "v3") {
+    if (state[0] > GRASS_CAPACITY + 1e-8) {
+      $("error").textContent =
+        "v3의 풀 총량 상한은 2,400입니다. " +
+        "생산자를 2,400 이하로 줄인 뒤 전환하세요.";
+      updateFormulaSettingsUI();
+      return;
+    }
+
+    const rabbitCount = Math.round(state[1]);
+    const foxCount = Math.round(state[2]);
+
+    const needsRounding =
+      Math.abs(state[1] - rabbitCount) > 1e-10 ||
+      Math.abs(state[2] - foxCount) > 1e-10;
+
+    if (
+      needsRounding &&
+      !window.confirm(
+        "v3는 동물을 정수 개체로 계산합니다.\n\n" +
+        `토끼: ${formatNumber(state[1], 4)} → ${rabbitCount}\n` +
+        `여우: ${formatNumber(state[2], 4)} → ${foxCount}\n\n` +
+        "반올림 차이는 변경 기록에 남깁니다.\n계속할까요?"
+      )
+    ) {
+      updateFormulaSettingsUI();
+      return;
+    }
+
+    recordState();
+    formulaVersion = "v3";
+
+    initializeABM([
+      Math.min(GRASS_CAPACITY, state[0]),
+      rabbitCount,
+      foxCount
+    ]);
+
+    recordState();
+
+    logChange(1, before[1], state[1], "v3 전환 · 정수 반올림");
+    logChange(2, before[2], state[2], "v3 전환 · 정수 반올림");
+  } else {
+    recordState();
+    formulaVersion = selected;
+
+    if (previous === "v3") {
+      clearEquilibriumWindow();
+      visualSeeds.forEach(seeds => { seeds.length = 0; });
+      ensureVisualSeeds();
+    }
+  }
+
+  // 계산 방식이 달라지므로 미처리 실시간 잔여분만 비운다.
+  // 시뮬레이션 시간·현재 상태·실행 여부·기록은 유지한다.
+  accumulator = 0;
+  lastTimestamp = null;
+  nextSampleTime = time + SAMPLE_INTERVAL;
+
+  $("error").textContent = "";
+  updateFormulaSettingsUI();
+
+  $("formulaStatus").textContent +=
+    ` 전환 시각 t=${time.toFixed(2)}.`;
+
+  requestRender();
+}
+
+function updateFormulaSettingsUI() {
+  const activeABM = isABM();
+  const name = activeABM
+    ? "수식v3 · 개체 기반"
+    : "수식" + formulaVersion;
+
+  $("formulaSettingsButton").textContent =
+    `시뮬레이션 수식 설정 · 현재: ${name}`;
+
+  document.querySelectorAll('input[name="formulaVersion"]')
+    .forEach(input => {
+      input.checked = input.value === formulaVersion;
+    });
+
+  $("formulaStatus").textContent = activeABM
+    ? "현재 수식v3를 사용 중입니다. 개체별 행동과 에너지로 계산합니다."
+    : formulaVersion === "v2"
+      ? "현재 수식v2를 사용 중입니다. 자연 변화율을 완화합니다."
+      : "현재 수식v1을 사용 중입니다. 기존 변화율로 계산합니다.";
+
+  $("abmControls").hidden = !activeABM;
+
+  $("initialP").max = activeABM ? GRASS_CAPACITY : 3000;
+  $("initialH").step = activeABM ? "1" : "any";
+  $("initialC").step = activeABM ? "1" : "any";
+
+  $("initialPLabel").textContent = activeABM
+    ? "생산자 · 풀 총량 / Grass"
+    : "생산자 / Plants";
+
+  $("adjustSpecies").options[0].textContent = activeABM
+    ? "생산자 · 풀 총량 / Grass"
+    : "생산자 / Plants";
+
+  for (const id of ["drought", "foxCull"]) {
+    $(id).disabled = !activeABM;
+    $(id).title = activeABM
+      ? "현재 상태에 즉시 적용합니다."
+      : "수식v3에서만 사용할 수 있습니다.";
+  }
+
+  $("world").setAttribute(
+    "aria-label",
+    activeABM
+      ? "풀 격자와 토끼·여우의 실제 위치"
+      : "연속 개체수를 도형으로 표시한 생태계"
+  );
+
+  $("worldModelNote").innerHTML = activeABM
+    ? (
+      '<span class="producer">■ 풀 격자</span> · ' +
+      '<span class="herbivore">● 토끼</span> · ' +
+      '<span class="predator">▲ 여우</span><br>' +
+      "초록색이 진할수록 해당 칸의 풀이 많습니다.<br>" +
+      "동물 도형 1개 = 1개체. 위치가 섭식·사냥에 영향을 줍니다.<br>" +
+      "가장자리를 넘으면 반대편으로 이어집니다."
+    )
+    : (
+      '<span class="producer">● 생산자</span> · ' +
+      '<span class="herbivore">● 1차 소비자</span> · ' +
+      '<span class="predator">▲ 2차 소비자</span><br>' +
+      "도형 수는 내부 개체수를 반올림합니다.<br>" +
+      "이동과 도형 간 겹침은 개체수 계산에 영향을 주지 않습니다."
+    );
+}
+
+// =========================================================
+// Canvas 공통·생태계
+// =========================================================
+function prepareCanvas(canvas) {
+  const rect = canvas.getBoundingClientRect();
+  const ratio = window.devicePixelRatio || 1;
+  const width = Math.max(1, Math.round(rect.width * ratio));
+  const height = Math.max(1, Math.round(rect.height * ratio));
+
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, rect.width, rect.height);
+  ctx.font = '12px Arial, "Malgun Gothic", sans-serif';
+
+  return { ctx, w: rect.width, h: rect.height };
+}
+
+function drawAnimal(ctx, x, y, angle, species) {
+  ctx.fillStyle = COLORS[species];
+  ctx.beginPath();
+
+  if (species === 1) {
+    ctx.ellipse(x, y, 5, 3.5, angle, 0, Math.PI * 2);
+  } else {
+    ctx.moveTo(
+      x + Math.cos(angle) * 6,
+      y + Math.sin(angle) * 6
+    );
+
+    ctx.lineTo(
+      x + Math.cos(angle + 2.45) * 5,
+      y + Math.sin(angle + 2.45) * 5
+    );
+
+    ctx.lineTo(
+      x + Math.cos(angle - 2.45) * 5,
+      y + Math.sin(angle - 2.45) * 5
+    );
+
+    ctx.closePath();
+  }
+
+  ctx.fill();
+}
+
+function drawWorld() {
+  const { ctx, w, h } = prepareCanvas($("world"));
+
+  ctx.fillStyle = "#f1f8ee";
+  ctx.fillRect(0, 0, w, h);
+  ctx.textAlign = "left";
+
+  for (let species = 0; species < 3; species++) {
+    ctx.fillStyle = COLORS[species];
+
+    ctx.fillText(
+      `${speciesName(species)}: ${displayValue(species)}`,
+      12, 20 + species * 18
+    );
+  }
+
+  ctx.fillStyle = "#4b5563";
+
+  if (isABM()) {
+    ctx.fillText(
+      `60×40칸 · 평균 풀 ${(state[0] / GRASS_CAPACITY * 100).toFixed(1)}%`,
+      12, 78
+    );
+  } else {
+    const env = getConditions();
+
+    ctx.fillText(
+      `환경: 성장 ${(env.growth / PARAM.r * 100).toFixed(0)}% · ` +
+      `자원 ${(env.capacity / PARAM.K * 100).toFixed(0)}%`,
+      12, 78
+    );
+  }
+
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#1e40af";
+
+  ctx.fillText(
+    isABM() ? "v3 · 개체 기반" : "수식" + formulaVersion,
+    w - 12, 20
+  );
+
+  const x0 = 12;
+  const y0 = 98;
+  const habitatWidth = Math.max(1, w - 24);
+  const habitatHeight = Math.max(1, h - 110);
+
+  if (isABM()) {
+    const cellW = habitatWidth / ABM.width;
+    const cellH = habitatHeight / ABM.height;
+
+    for (let y = 0; y < ABM.height; y++) {
+      for (let x = 0; x < ABM.width; x++) {
+        const value = grass[y * ABM.width + x];
+        const red = Math.round(244 - 210 * value);
+        const green = Math.round(238 - 85 * value);
+        const blue = Math.round(213 - 153 * value);
+
+        ctx.fillStyle = `rgb(${red},${green},${blue})`;
+
+        ctx.fillRect(
+          x0 + x * cellW,
+          y0 + y * cellH,
+          cellW + 0.4,
+          cellH + 0.4
+        );
+      }
+    }
+
+    [rabbits, foxes].forEach((animals, index) => {
+      for (const animal of animals) {
+        drawAnimal(
+          ctx,
+          x0 + animal.x / ABM.width * habitatWidth,
+          y0 + animal.y / ABM.height * habitatHeight,
+          animal.angle,
+          index + 1
+        );
+      }
+    });
+  } else {
+    ensureVisualSeeds();
+    const counts = displayedCounts();
+
+    for (let species = 0; species < 3; species++) {
+      for (let i = 0; i < counts[species]; i++) {
+        const seed = visualSeeds[species][i];
+        const x = x0 + seed.x * habitatWidth;
+        const y = y0 + seed.y * habitatHeight;
+
+        if (species === 0) {
+          ctx.fillStyle = COLORS[0];
+          ctx.beginPath();
+          ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          drawAnimal(ctx, x, y, seed.angle, species);
+        }
+      }
+    }
+  }
+}
+
+// =========================================================
+// 그래프
+// =========================================================
+function drawGraph() {
+  const { ctx, w, h } = prepareCanvas($("graph"));
+
+  const minT = Math.max(0, time - HISTORY_WINDOW);
+  const maxT = Math.max(30, time);
+
+  const visibleEvents = changeEvents.filter(event =>
+    event.t >= minT - 1e-8 && event.t <= maxT + 1e-8
+  );
+
+  const relative = $("graphMode").value === "relative";
+  const valueFor = (value, species) =>
+    relative ? value / REFERENCE[species] * 100 : value;
+
+  const left = 62;
+  const right = 14;
+  const plotWidth = Math.max(1, w - left - right);
+
+  const X = t =>
+    left + (t - minT) / (maxT - minT) * plotWidth;
+
+  graphHits = [];
+  ctx.font = '11px Arial, "Malgun Gothic", sans-serif';
+
+  const laneEnds = Array(5).fill(-Infinity);
+  const labels = [];
+
+  for (const event of visibleEvents) {
+    const text =
+      `#${event.id} t=${event.t.toFixed(2)} ` +
+      `${SHORT_NAMES[event.species]} ${deltaText(event.delta)}`;
+
+    const width = Math.min(
+      plotWidth,
+      ctx.measureText(text).width + 12
+    );
+
+    const eventX = X(event.t);
+    const x = Math.max(
+      left,
+      Math.min(w - right - width, eventX + 5)
+    );
+
+    let lane = laneEnds.findIndex(end => x >= end + 5);
+
+    if (lane < 0) {
+      lane = laneEnds.indexOf(Math.min(...laneEnds));
+    }
+
+    laneEnds[lane] = Math.max(laneEnds[lane], x + width);
+    labels.push({ event, text, x, width, lane, eventX });
+  }
+
+  const laneCount = labels.reduce(
+    (maximum, label) => Math.max(maximum, label.lane + 1),
+    0
+  );
+
+  const top = laneCount ? 30 + laneCount * 23 : 28;
+  const bottom = h - 44;
+  const plotHeight = Math.max(1, bottom - top);
+
+  let largest = relative ? 120 : 600;
+
+  for (const point of history) {
+    point.values.forEach((value, species) => {
+      largest = Math.max(
+        largest, valueFor(value, species) * 1.12
+      );
+    });
+  }
+
+  state.forEach((value, species) => {
+    largest = Math.max(
+      largest, valueFor(value, species) * 1.12
+    );
+  });
+
+  const yMax = Math.ceil(largest / 20) * 20;
+  const Y = value => top + plotHeight * (1 - value / yMax);
+
+  ctx.fillStyle = "#374151";
+  ctx.textAlign = "left";
+  ctx.fillText(
+    relative ? "표시 기준 대비 (%)" : "개체수 / 풀 총량",
+    left, 15
+  );
+
+  ctx.lineWidth = 1;
+
+  for (let i = 0; i <= 5; i++) {
+    const value = yMax * i / 5;
+    const y = Y(value);
+
+    ctx.strokeStyle = "#e5e7eb";
+    ctx.beginPath();
+    ctx.moveTo(left, y);
+    ctx.lineTo(w - right, y);
+    ctx.stroke();
+
+    ctx.fillStyle = "#4b5563";
+    ctx.textAlign = "right";
+
+    ctx.fillText(
+      Math.round(value).toLocaleString("ko-KR"),
+      left - 7, y + 4
+    );
+  }
+
+  for (let i = 0; i <= 5; i++) {
+    const t = minT + (maxT - minT) * i / 5;
+    const x = X(t);
+
+    ctx.strokeStyle = "#e5e7eb";
+    ctx.beginPath();
+    ctx.moveTo(x, top);
+    ctx.lineTo(x, bottom);
+    ctx.stroke();
+
+    ctx.fillStyle = "#4b5563";
+    ctx.textAlign = "center";
+    ctx.fillText(t.toFixed(0), x, h - 24);
+  }
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(left, top, plotWidth, plotHeight);
+  ctx.clip();
+
+  if (relative) {
+    ctx.strokeStyle = "#94a3b8";
+    ctx.setLineDash([5, 5]);
+
+    ctx.beginPath();
+    ctx.moveTo(left, Y(100));
+    ctx.lineTo(w - right, Y(100));
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  for (const event of visibleEvents) {
+    const x = X(event.t);
+
+    ctx.strokeStyle = COLORS[event.species];
+    ctx.globalAlpha = 0.55;
+    ctx.setLineDash([4, 4]);
+
+    ctx.beginPath();
+    ctx.moveTo(x, top);
+    ctx.lineTo(x, bottom);
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+  }
+
+  for (let species = 0; species < 3; species++) {
+    ctx.strokeStyle = COLORS[species];
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+
+    history.forEach((point, index) => {
+      const x = X(point.t);
+      const y = Y(valueFor(point.values[species], species));
+
+      if (index === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+
+    ctx.lineTo(X(time), Y(valueFor(state[species], species)));
+    ctx.stroke();
+  }
+
+  for (const event of visibleEvents) {
+    ctx.beginPath();
+
+    ctx.arc(
+      X(event.t),
+      Y(valueFor(event.after, event.species)),
+      4, 0, Math.PI * 2
+    );
+
+    ctx.fillStyle = "#fff";
+    ctx.fill();
+    ctx.strokeStyle = COLORS[event.species];
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  ctx.restore();
+
+  for (const label of labels) {
+    const { event, text, x, width, lane, eventX } = label;
+    const y = 25 + lane * 23;
+    const color = COLORS[event.species];
+
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.45;
+    ctx.lineWidth = 1;
+
+    ctx.beginPath();
+    ctx.moveTo(
+      Math.max(x, Math.min(x + width, eventX)),
+      y + 19
+    );
+    ctx.lineTo(eventX, top);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(x, y, width, 19);
+    ctx.strokeStyle = color;
+    ctx.strokeRect(x + 0.5, y + 0.5, width - 1, 18);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x + 3, y, Math.max(1, width - 6), 19);
+    ctx.clip();
+    ctx.fillStyle = color;
+    ctx.textAlign = "left";
+    ctx.fillText(text, x + 6, y + 13);
+    ctx.restore();
+
+    graphHits.push({
+      event, x, y, width,
+      height: 19,
+      lineX: eventX,
+      top, bottom
+    });
+  }
+
+  ctx.fillStyle = "#374151";
+  ctx.textAlign = "center";
+
+  ctx.fillText(
+    "가상 시간 / Virtual Time",
+    left + plotWidth / 2,
+    h - 5
+  );
+
+  updateGraphTooltip();
+}
+
+function updateGraphTooltip() {
+  const tooltip = $("graphTooltip");
+
+  if (!pointerPosition || $("graphView").hidden) {
+    tooltip.hidden = true;
+    $("graph").style.cursor = "default";
+    return;
+  }
+
+  const { x, y } = pointerPosition;
+
+  const labelHits = graphHits.filter(hit =>
+    x >= hit.x && x <= hit.x + hit.width &&
+    y >= hit.y && y <= hit.y + hit.height
+  );
+
+  const hits = labelHits.length
+    ? [labelHits[labelHits.length - 1]]
+    : graphHits.filter(hit =>
+        Math.abs(x - hit.lineX) <= 7 &&
+        y >= hit.top && y <= hit.bottom
+      );
+
+  $("graph").style.cursor = hits.length ? "help" : "default";
+
+  if (!hits.length) {
+    tooltip.hidden = true;
+    return;
+  }
+
+  tooltip.textContent = hits.slice(-5).map(({ event }) =>
+    `#${event.id} · t=${event.t.toFixed(2)}\n` +
+    `${event.reason}\n` +
+    `${event.name} ${deltaText(event.delta)}\n` +
+    `${formatNumber(event.before, 4)} → ` +
+    formatNumber(event.after, 4)
+  ).join("\n────────────\n") + (
+    hits.length > 5
+      ? "\n나머지는 변경 기록 표를 확인하세요."
+      : ""
+  );
+
+  tooltip.hidden = false;
+
+  const container = $("graphWrap");
+  const maxLeft = Math.max(
+    4, container.clientWidth - tooltip.offsetWidth - 4
+  );
+  const maxTop = Math.max(
+    4, container.clientHeight - tooltip.offsetHeight - 4
+  );
+
+  tooltip.style.left =
+    Math.min(maxLeft, Math.max(4, x + 12)) + "px";
+
+  tooltip.style.top =
+    Math.min(maxTop, Math.max(4, y + 12)) + "px";
+}
+
+// =========================================================
+// 과거 기록·피라미드
+// =========================================================
+function getPopulationAt(targetTime) {
+  const epsilon = 1e-8;
+
+  if (
+    !history.length ||
+    targetTime < -epsilon ||
+    targetTime > time + epsilon
+  ) return null;
+
+  targetTime = Math.max(0, targetTime);
+  if (targetTime < history[0].t - epsilon) return null;
+
+  let low = 0;
+  let high = history.length;
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+
+    if (history[middle].t <= targetTime + epsilon) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+
+  const index = low - 1;
+  if (index < 0) return null;
+
+  const before = history[index];
+
+  if (Math.abs(targetTime - before.t) <= epsilon) {
+    return [...before.values];
+  }
+
+  const after = history[index + 1] || {
+    t: time,
+    values: state
+  };
+
+  const duration = after.t - before.t;
+  if (duration <= epsilon) return [...before.values];
+
+  const ratio = Math.max(
+    0, Math.min(1, (targetTime - before.t) / duration)
+  );
+
+  return before.values.map((value, i) =>
+    value + (after.values[i] - value) * ratio
+  );
+}
+
+function comparisonArrowPath(cx, cy, direction) {
+  if (direction === 0) {
+    return [
+      `M ${cx - 29} ${cy}`,
+      `L ${cx - 13} ${cy - 15}`,
+      `L ${cx - 13} ${cy - 6}`,
+      `L ${cx + 13} ${cy - 6}`,
+      `L ${cx + 13} ${cy - 15}`,
+      `L ${cx + 29} ${cy}`,
+      `L ${cx + 13} ${cy + 15}`,
+      `L ${cx + 13} ${cy + 6}`,
+      `L ${cx - 13} ${cy + 6}`,
+      `L ${cx - 13} ${cy + 15}`,
+      "Z"
+    ].join(" ");
+  }
+
+  const points = [
+    [-28, -10], [5, -10], [5, -23],
+    [29, 0], [5, 23], [5, 10], [-28, 10]
+  ];
+
+  return points.map(([x, y], index) =>
+    `${index === 0 ? "M" : "L"} ` +
+    `${cx + x * direction} ${cy + y}`
+  ).join(" ") + " Z";
+}
+
+function updatePyramidComparison() {
+  $("pyramidComparisonArrows").setAttribute(
+    "display", pyramidCompareEnabled ? "inline" : "none"
+  );
+
+  $("pyramidCompareNote").hidden = !pyramidCompareEnabled;
+  if (!pyramidCompareEnabled) return;
+
+  const targetTime = time - comparisonHours;
+  const past = getPopulationAt(targetTime);
+
+  const rows = [
+    { index: 2, suffix: "C", y: 50 },
+    { index: 1, suffix: "H", y: 150 },
+    { index: 0, suffix: "P", y: 250 }
+  ];
+
+  for (const row of rows) {
+    const arrow = $("compareArrow" + row.suffix);
+    const caption = $("compareCaption" + row.suffix);
+    const title = $("compareTitle" + row.suffix);
+
+    caption.setAttribute("x", 48);
+    caption.setAttribute("y", row.y + 39);
+
+    if (!past) {
+      arrow.setAttribute("d", "");
+      caption.textContent = "대기";
+      title.textContent = "비교할 과거 기록을 기다리는 중";
+      continue;
+    }
+
+    const previous = past[row.index];
+    const current = state[row.index];
+    const difference = current - previous;
+    const tolerance = 1e-6 * Math.max(
+      1, Math.abs(previous), Math.abs(current)
+    );
+
+    const direction =
+      difference > tolerance ? 1 :
+      difference < -tolerance ? -1 : 0;
+
+    arrow.setAttribute(
+      "d", comparisonArrowPath(48, row.y, direction)
+    );
+
+    arrow.setAttribute(
+      "stroke",
+      direction === 0 ? "#64748b" : COLORS[row.index]
+    );
+
+    caption.textContent = direction === 0
+      ? "변화 없음"
+      : deltaText(difference);
+
+    title.textContent =
+      `${speciesName(row.index)}\n` +
+      `과거: ${formatNumber(previous, 4)}\n` +
+      `현재: ${formatNumber(current, 4)}\n` +
+      `차이: ${deltaText(difference)}`;
+  }
+
+  if (!past) {
+    const remaining = Math.max(0, comparisonHours - time);
+
+    $("pyramidCompareNote").textContent = remaining > 0
+      ? `비교하려면 가상 시간이 ${remaining.toFixed(1)}만큼 더 필요합니다.`
+      : "해당 시점의 기록이 없습니다.";
+
+    return;
+  }
+
+  $("pyramidCompareNote").textContent =
+    `가상 시간 ${comparisonHours} 전 ` +
+    `(t=${Math.max(0, targetTime).toFixed(1)}) 대비 ` +
+    "→ 증가 / ← 감소 / ↔ 변화 거의 없음. " +
+    "직접 조절·환경 사건도 포함하며 기록 사이는 선형 보간합니다.";
+}
+
+function drawPyramid() {
+  const widths = state.map(value => value * 0.48);
+  const gutter = pyramidCompareEnabled ? 100 : 0;
+
+  const habitatWidth = Math.max(
+    500, Math.ceil(Math.max(...widths) + 20)
+  );
+
+  const totalWidth = habitatWidth + gutter;
+  const centerX = gutter + habitatWidth / 2;
+
+  $("pyramid").setAttribute("width", totalWidth);
+  $("pyramid").style.width = totalWidth + "px";
+
+  $("pyramid").setAttribute(
+    "viewBox", `0 0 ${totalWidth} 300`
+  );
+
+  $("pyramidCenter").setAttribute("x1", centerX);
+  $("pyramidCenter").setAttribute("x2", centerX);
+
+  const sections = [
+    ["bottomPart", "bottomLabel", "pyramidP"],
+    ["middlePart", "middleLabel", "pyramidH"],
+    ["topPart", "topLabel", "pyramidC"]
+  ];
+
+  sections.forEach(([rect, label, output], index) => {
+    $(rect).setAttribute("width", widths[index]);
+    $(rect).setAttribute("x", centerX - widths[index] / 2);
+    $(label).setAttribute("x", centerX);
+
+    const count = displayValue(index);
+    $(label).textContent = `${speciesName(index)}: ${count}`;
+    $(output).textContent = count;
+    $(output).title = `계산값: ${formatNumber(state[index], 4)}`;
+  });
+
+  updatePyramidComparison();
+}
+
+// =========================================================
+// 요약·보기
+// =========================================================
+function updateSummary() {
+  $("time").textContent = time.toFixed(1);
+  $("time").title = isABM()
+    ? `가상 시간 ${time.toFixed(4)} · 현재 v3 구간 ${abmTick}틱`
+    : `가상 시간 ${time.toFixed(4)}`;
+
+  const rates = isABM()
+    ? lastABMRates
+    : derivative(state);
+
+  ["P", "H", "C"].forEach((suffix, index) => {
+    $("summaryLabel" + suffix).textContent =
+      speciesName(index) + ":";
+
+    $("count" + suffix).textContent = displayValue(index);
+    $("count" + suffix).title =
+      `계산값: ${formatNumber(state[index], 4)}`;
+
+    const relativeRate = rates[index] / Math.max(state[index], 1);
+    const arrow =
+      relativeRate > 0.002 ? "↑" :
+      relativeRate < -0.002 ? "↓" : "↔";
+
+    const description =
+      (isABM() ? "직전 틱 자연 변화: " : "순간 변화: ") +
+      (
+        arrow === "↑" ? "증가" :
+        arrow === "↓" ? "감소" : "변화가 작음"
+      );
+
+    $("direction" + suffix).textContent = arrow;
+    $("direction" + suffix).title = description;
+    $("direction" + suffix).setAttribute("aria-label", description);
+  });
+
+  const selected = Number($("adjustSpecies").value);
+
+  $("selectedPopulation").textContent = displayValue(selected);
+  $("selectedPopulation").style.color = COLORS[selected];
+  $("selectedPopulation").title =
+    formatNumber(state[selected], 4);
+
+  if (isABM()) {
+    const text = equilibriumText();
+
+    if ($("abmStatus").textContent !== text) {
+      $("abmStatus").textContent = text;
+    }
+  }
+}
+
+function syncView() {
+  const pyramidMode = $("viewMode").value === "pyramid";
+
+  $("graphView").hidden = pyramidMode;
+  $("pyramidView").hidden = !pyramidMode;
+  $("graphModeControl").hidden = pyramidMode;
+  $("pyramidCompareControls").hidden = !pyramidMode;
+
+  $("viewTitle").textContent = pyramidMode
+    ? "개체군 수치 피라미드 / Pyramid"
+    : "개체군 변화 / Population Graph";
+
+  pointerPosition = null;
+  $("graphTooltip").hidden = true;
+  requestRender();
+}
+
+function render() {
+  drawWorld();
+
+  if ($("viewMode").value === "pyramid") {
+    drawPyramid();
+  } else {
+    drawGraph();
+  }
+
+  updateSummary();
+  needsRender = false;
+}
+
+// =========================================================
+// UI 이벤트
+// =========================================================
+function bindDisclosure(buttonId, panelId, label) {
+  const button = $(buttonId);
+  const panel = $(panelId);
+
+  button.addEventListener("click", () => {
+    const expanded =
+      button.getAttribute("aria-expanded") === "true";
+
+    button.setAttribute("aria-expanded", String(!expanded));
+    button.setAttribute(
+      "aria-label", label + (expanded ? " 열기" : " 닫기")
+    );
+
+    panel.hidden = expanded;
+    requestRender();
+  });
+}
+
+bindDisclosure("abmHelpButton", "abmHelp", "수식v3 설정 설명");
+bindDisclosure("adjustHelpButton", "adjustHelp", "개체수 조절 설명");
+bindDisclosure("infoButton", "infoPanel", "시뮬레이션 안내");
+bindDisclosure(
+  "formulaSettingsButton",
+  "formulaSettingsPanel",
+  "시뮬레이션 수식 설정"
+);
+
+$("preset").addEventListener("change", () => {
+  const preset = PRESETS[$("preset").value];
+  if (!preset) return;
+
+  ["initialP", "initialH", "initialC"].forEach((id, index) => {
+    $(id).value = preset[index];
+  });
+});
+
+["initialP", "initialH", "initialC"].forEach(id => {
+  $(id).addEventListener("input", () => {
+    $("preset").value = "custom";
+  });
+});
+
+$("apply").addEventListener("click", reset);
+$("play").addEventListener("click", () => setRunning(!running));
+
+$("addPopulation").addEventListener("click", () => {
+  adjustPopulation(1);
+});
+
+$("removePopulation").addEventListener("click", () => {
+  adjustPopulation(-1);
+});
+
+$("drought").addEventListener("click", () => {
+  applyEnvironmentEvent("drought");
+});
+
+$("foxCull").addEventListener("click", () => {
+  applyEnvironmentEvent("foxCull");
+});
+
+$("adjustSpecies").addEventListener("change", requestRender);
+$("graphMode").addEventListener("change", requestRender);
+$("viewMode").addEventListener("change", syncView);
+
+$("togglePyramidCompare").addEventListener("click", () => {
+  pyramidCompareEnabled = !pyramidCompareEnabled;
+
+  $("togglePyramidCompare").setAttribute(
+    "aria-pressed", String(pyramidCompareEnabled)
+  );
+
+  $("togglePyramidCompare").textContent = pyramidCompareEnabled
+    ? "과거 비교: 켜짐"
+    : "과거 비교: 꺼짐";
+
+  requestRender();
+});
+
+$("compareHours").addEventListener("input", () => {
+  const input = $("compareHours");
+  const value = input.valueAsNumber;
+
+  if (
+    !Number.isFinite(value) ||
+    value < 0.2 ||
+    value > HISTORY_WINDOW
+  ) {
+    input.setCustomValidity("비교 시간은 0.2~120 사이로 입력하세요.");
+    return;
+  }
+
+  input.setCustomValidity("");
+  comparisonHours = value;
+  requestRender();
+});
+
+$("compareHours").addEventListener("change", () => {
+  if (!$("compareHours").checkValidity()) {
+    $("compareHours").reportValidity();
+  }
+});
+
+document.querySelectorAll('input[name="formulaVersion"]')
+  .forEach(input => {
+    input.addEventListener("change", event => {
+      if (event.target.checked) {
+        changeFormula(event.target.value);
+      }
+    });
+  });
+
+[
+  "grassRegrowth",
+  "rabbitBirthRate",
+  "foxBirthRate",
+  "foxHuntSuccess"
+].forEach(id => {
+  const input = $(id);
+
+  input.addEventListener("input", () => {
+    const value = input.valueAsNumber;
+
+    if (
+      !Number.isFinite(value) ||
+      value < 0 ||
+      value > 1
+    ) {
+      input.setCustomValidity("0~1 사이의 값을 입력하세요.");
+      return;
+    }
+
+    input.setCustomValidity("");
+    ABM[id] = value;
+  });
+
+  input.addEventListener("change", () => {
+    if (!input.checkValidity()) input.reportValidity();
+  });
+});
+
+function locateGraphPointer(event) {
+  const rect = $("graph").getBoundingClientRect();
+
+  pointerPosition = {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top
+  };
+
+  updateGraphTooltip();
+}
+
+$("graph").addEventListener("pointermove", locateGraphPointer);
+$("graph").addEventListener("pointerdown", locateGraphPointer);
+
+$("graph").addEventListener("pointerleave", () => {
+  pointerPosition = null;
+  $("graphTooltip").hidden = true;
+  $("graph").style.cursor = "default";
+});
+
+document.addEventListener("pointerdown", event => {
+  if (!$("graphWrap").contains(event.target)) {
+    pointerPosition = null;
+    $("graphTooltip").hidden = true;
+  }
+});
+
+window.addEventListener("resize", requestRender);
+
+if ("ResizeObserver" in window) {
+  const resizeObserver = new ResizeObserver(requestRender);
+  resizeObserver.observe($("world").parentElement);
+  resizeObserver.observe($("graphWrap"));
+}
+
+document.addEventListener("visibilitychange", () => {
+  lastTimestamp = null;
+});
+
+// =========================================================
+// 메인 루프
+// =========================================================
+function frame(timestamp) {
+  const elapsed = lastTimestamp === null
+    ? 0
+    : Math.max(
+        0,
+        Math.min((timestamp - lastTimestamp) / 1000, 0.1)
+      );
+
+  lastTimestamp = timestamp;
+
+  if (running) {
+    accumulator += elapsed * 2 * Number($("speed").value);
+
+    const step = isABM() ? ABM_TICK_TIME : STEP;
+    let advancedTime = 0;
+
+    while (accumulator + 1e-12 >= step) {
+      if (isABM()) {
+        advanceABMTick();
+      } else {
+        updateEnvironment(step);
+
+        const next = integrate(state, step);
+
+        if (next.some(value => !Number.isFinite(value))) {
+          setRunning(false);
+          accumulator = 0;
+
+          $("error").textContent =
+            "수치 계산 오류입니다. 시작 조건을 초기화하세요.";
+
+          break;
+        }
+
+        state = next;
+      }
+
+      time += step;
+      advancedTime += step;
+      accumulator = Math.max(0, accumulator - step);
+
+      if (time + 1e-9 >= nextSampleTime) {
+        recordState();
+        nextSampleTime += SAMPLE_INTERVAL;
+      }
+    }
+
+    if (!isABM() && advancedTime > 0) {
+      updateMovement(advancedTime);
+    }
+
+    if (advancedTime > 0) needsRender = true;
+  }
+
+  // 일시정지 상태에서는 변경·리사이즈 시에만 다시 그린다.
+  if (needsRender) render();
+
+  requestAnimationFrame(frame);
+}
+
+// 초기 실행
+syncView();
+reset();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
